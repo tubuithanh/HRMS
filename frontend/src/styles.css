@@ -1,0 +1,117 @@
+/*
+ * Bổ sung cho Bootstrap 5: chỉ những gì Bootstrap không có sẵn.
+ * Màu lấy từ biến của Bootstrap nên tự đổi theo chế độ sáng/tối.
+ */
+
+body { background: var(--bs-tertiary-bg); }
+
+/* ----- Menu ngang ----- */
+.navbar .nav-link { white-space: nowrap; }
+.navbar .nav-link.active { color: var(--bs-primary) !important; font-weight: 600; }
+.navbar .dropdown-item.active { background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); }
+@media (min-width: 992px) {
+  .navbar .dropdown-menu { margin-top: 0.25rem; }
+}
+@media (max-width: 991.98px) {
+  .navbar .dropdown-menu { position: static; border: 0; box-shadow: none !important; padding-left: 1rem; }
+}
+
+/* ----- Dashboard ----- */
+.kpi-link .card { transition: border-color 0.15s, transform 0.15s; }
+.kpi-link:hover .card { border-color: var(--bs-primary); transform: translateY(-1px); }
+.hbar { cursor: default; }
+.hbar-track { height: 10px; background: var(--bs-secondary-bg); border-radius: 4px; overflow: hidden; }
+.hbar-fill { height: 100%; background: var(--bs-primary); border-radius: 0 4px 4px 0; min-width: 4px; }
+.hbar-track { display: flex; }
+.hbar:hover .hbar-fill { filter: brightness(1.15); }
+
+/* ----- Tiện ích dùng lại trong các trang ----- */
+.muted { color: var(--bs-secondary-color); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.stack { display: flex; flex-direction: column; gap: 1rem; }
+.stack > .card { margin-bottom: 0 !important; }
+.grid { display: grid; gap: 1rem; }
+.grid-stats { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.grid > .card { margin-bottom: 0 !important; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+.table .actions { text-align: right; white-space: nowrap; }
+.empty { padding: 1.5rem; text-align: center; color: var(--bs-secondary-color); }
+
+.stat .label { color: var(--bs-secondary-color); font-size: 0.875rem; }
+.stat .value { font-size: 1.75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+a > .card:hover { border-color: var(--bs-primary); }
+
+dl.kv { display: grid; grid-template-columns: 170px 1fr; gap: 0.35rem 1rem; margin: 0; }
+dl.kv dt { color: var(--bs-secondary-color); font-weight: 400; }
+dl.kv dd { margin: 0; }
+@media (max-width: 575.98px) { dl.kv { grid-template-columns: 1fr; } dl.kv dd { margin-bottom: 0.5rem; } }
+
+/* ----- Cây tổ chức ----- */
+.tree { list-style: none; margin: 0; padding-left: 1.25rem; border-left: 1px dashed var(--bs-border-color); }
+.tree.root { padding-left: 0; border-left: none; }
+.tree .node { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; border-radius: var(--bs-border-radius); }
+.tree .node:hover { background: var(--bs-tertiary-bg); }
+
+/* ----- Bảng công ----- */
+.ts-table td, .ts-table th { padding: 0.3rem 0.2rem !important; text-align: center; font-size: 0.75rem; }
+.ts-table td.name, .ts-table th.name { text-align: left; min-width: 170px; position: sticky; left: 0; background: var(--bs-body-bg); z-index: 1; }
+.ts-cell { display: inline-block; width: 24px; height: 22px; line-height: 22px; border-radius: 4px; font-weight: 600; text-align: center; }
+.ts-weekend { background: var(--bs-secondary-bg) !important; }
+.ts-PRESENT { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); }
+.ts-LATE { background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); }
+.ts-REMOTE { background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); }
+.ts-ABSENT { background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
+.ts-LEAVE { background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); }
+.ts-HOLIDAY { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
+
+/* ----- Tuyển dụng (cột theo vòng) ----- */
+.kanban { display: grid; grid-template-columns: repeat(6, minmax(210px, 1fr)); gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; }
+.kanban-col { background: var(--bs-secondary-bg); border-radius: var(--bs-border-radius-lg); padding: 0.6rem; min-height: 120px; }
+.kanban-col h3 { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; justify-content: space-between; }
+.kanban-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius); padding: 0.6rem; margin-bottom: 0.5rem; }
+
+/* ----- Đăng nhập ----- */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.login-card { width: 100%; max-width: 380px; }
+
+/* ----- Biểu đồ (bảng màu đã kiểm định CVD — xem components/charts.tsx) ----- */
+:root, [data-bs-theme="light"] {
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-muted: #898781;
+}
+[data-bs-theme="dark"] {
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
+  --viz-muted: #898781;
+}
+.viz-grid { stroke: var(--viz-grid); stroke-width: 1; shape-rendering: crispEdges; }
+.viz-baseline { stroke: var(--viz-axis); stroke-width: 1; shape-rendering: crispEdges; }
+.viz-crosshair { stroke: var(--viz-muted); stroke-width: 1; shape-rendering: crispEdges; }
+.viz-tick { fill: var(--viz-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.viz-label { fill: var(--bs-body-color); font-size: 11px; font-weight: 600; }
+.viz-bar-group { outline: none; cursor: default; }
+.viz-bar-group:hover path, .viz-bar-group:focus path { filter: brightness(1.12); }
+.viz-bar-group:focus-visible rect { stroke: var(--bs-primary); stroke-width: 1; }
+.viz-tooltip {
+  position: absolute; pointer-events: none; z-index: 5; min-width: 150px;
+  background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius); box-shadow: var(--bs-box-shadow-sm);
+  padding: 0.4rem 0.6rem; font-size: 0.85rem;
+}
+.hbar.is-hover .hbar-fill { filter: brightness(1.12); }
+.hbar:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; border-radius: 4px; }
+.hbar-fill { background: var(--viz-1) !important; }
+
+/* KPI */
+.kpi-value { font-size: 1.9rem; font-weight: 700; line-height: 1.1; }
+.kpi-delta { font-size: 0.8rem; font-weight: 600; }
+.todo-pill { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.8rem; border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius-lg); background: var(--bs-body-bg); color: var(--bs-body-color); text-decoration: none; height: 100%; }
+.todo-pill:hover { border-color: var(--bs-primary); color: var(--bs-body-color); }
+.todo-pill .count { font-size: 1.25rem; font-weight: 700; margin-left: auto; font-variant-numeric: tabular-nums; }

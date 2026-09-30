@@ -1,0 +1,219 @@
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api, errorMessage } from '../api/client';
+import { Card, ErrorBox, FieldDef, FormFields, Loading, PageHeader, toBody, useToast } from '../components/ui';
+import { useFetch } from '../lib/hooks';
+import { money } from '../lib/format';
+
+interface SettingsData {
+  settings: {
+    attendance: { workStart: string; workEnd: string; lateGraceMinutes: number };
+    payroll: { defaultRegion: number; payDay: number };
+    approval: { twoStep: boolean };
+    security: { maxFailedLogins: number; lockMinutes: number; sessionHours: number; resetTokenMinutes: number };
+  };
+  company: { name: string; taxCode: string | null; address: string | null };
+  legal: {
+    personalDeduction: string;
+    dependantDeduction: string;
+    baseSalary: string;
+    minWageRegion: Record<string, string>;
+    pitBrackets: Array<{ from: string; to: string | null; rate: string }>;
+    insurance: Array<{ type: string; employeeRate: string; companyRate: string; cap: string }>;
+  };
+  mail: { configured: boolean; host: string | null; from: string; appUrl: string };
+}
+
+type Values = Record<string, string | boolean>;
+
+const toValues = (obj: object): Values =>
+  Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, typeof v === 'boolean' ? v : v === null ? '' : String(v)]));
+
+/** Một khung cấu hình: form + nút lưu riêng. */
+function Section(props: {
+  title: string;
+  icon: string;
+  description?: ReactNode;
+  fields: FieldDef[];
+  initial: object;
+  save: (body: Record<string, unknown>) => Promise<unknown>;
+  onSaved: () => void;
+}) {
+  const [values, setValues] = useState<Values>(() => toValues(props.initial));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+  useEffect(() => setValues(toValues(props.initial)), [props.initial]);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await props.save(toBody(props.fields, values));
+      toast(`Đã lưu: ${props.title}`);
+      props.onSaved();
+    } catch (err) {
+      const details = (err as { response?: { data?: { error?: { details?: Record<string, string[]> } } } }).response?.data?.error?.details;
+      setError(details ? Object.values(details).flat().join(' · ') : errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card
+      title={
+        <h2 className="h6 mb-0">
+          <i className={`bi ${props.icon} me-2 text-primary`} />
+          {props.title}
+        </h2>
+      }
+    >
+      <form onSubmit={submit}>
+        {props.description && <p className="small text-body-secondary mt-0">{props.description}</p>}
+        {error && <div className="alert alert-danger py-2">{error}</div>}
+        <FormFields fields={props.fields} values={values} onChange={(n, v) => setValues((s) => ({ ...s, [n]: v }))} />
+        <div className="d-flex justify-content-end mt-3">
+          <button className="btn btn-primary" disabled={saving}>
+            {saving ? 'Đang lưu…' : 'Lưu'}
+          </button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+const pct = (r: string) => `${(Number(r) * 100).toLocaleString('vi-VN')}%`;
+
+export default function SettingsPage() {
+  const { data, error, loading, reload } = useFetch<SettingsData>('/settings');
+  const [testTo, setTestTo] = useState('');
+  const [testMsg, setTestMsg] = useState<string | null>(null);
+
+  if (loading && !data) return <Loading />;
+  if (!data) return <ErrorBox error={error} />;
+  const s = data.settings;
+  const saveGroup = (group: string) => (body: Record<string, unknown>) => api.put('/settings', { [group]: body });
+
+  async function testEmail(e: FormEvent) {
+    e.preventDefault();
+    setTestMsg(null);
+    try {
+      const res = await api.post('/settings/test-email', { to: testTo });
+      setTestMsg(res.data.data.configured ? `Đã gửi email thử tới ${testTo}. Hãy kiểm tra hộp thư.` : 'Chưa cấu hình SMTP: nội dung email đã được in ra log của server.');
+    } catch (err) {
+      setTestMsg(errorMessage(err));
+    }
+  }
+
+  return (
+    <>
+      <PageHeader title="Cấu hình hệ thống" subtitle="Thay đổi có hiệu lực ngay (tối đa sau 15 giây) và được ghi vào nhật ký thao tác." />
+      <div className="row g-3">
+        <div className="col-xl-6">
+          <Section
+            title="Thông tin công ty"
+            icon="bi-building"
+            description="In trên phiếu lương và báo cáo."
+            fields={[
+              { name: 'name', label: 'Tên công ty', required: true, full: true },
+              { name: 'taxCode', label: 'Mã số thuế', nullable: true },
+              { name: 'address', label: 'Địa chỉ', nullable: true, full: true },
+            ]}
+            initial={data.company}
+            save={(body) => api.put('/settings/company', body)}
+            onSaved={reload}
+          />
+          <Section
+            title="Chấm công"
+            icon="bi-clock"
+            description="Nhân viên chấm công vào sau giờ vào làm + số phút cho phép được tính là đi muộn."
+            fields={[
+              { name: 'workStart', label: 'Giờ vào làm (HH:mm)', required: true, placeholder: '08:30' },
+              { name: 'workEnd', label: 'Giờ tan ca (HH:mm)', required: true, placeholder: '17:30' },
+              { name: 'lateGraceMinutes', label: 'Số phút cho phép đi muộn', type: 'number', required: true },
+            ]}
+            initial={s.attendance}
+            save={saveGroup('attendance')}
+            onSaved={reload}
+          />
+          <Section
+            title="Tính lương"
+            icon="bi-cash-coin"
+            fields={[
+              {
+                name: 'defaultRegion',
+                label: 'Vùng lương tối thiểu mặc định',
+                type: 'select',
+                required: true,
+                options: [1, 2, 3, 4].map((r) => ({ value: String(r), label: `Vùng ${r} — ${money(data.legal.minWageRegion[r])}đ` })),
+              },
+              { name: 'payDay', label: 'Ngày trả lương (ngày của tháng sau)', type: 'number', required: true },
+            ]}
+            initial={s.payroll}
+            save={(body) => api.put('/settings', { payroll: { defaultRegion: Number(body.defaultRegion), payDay: body.payDay } })}
+            onSaved={reload}
+          />
+          <Section
+            title="Quy trình duyệt"
+            icon="bi-diagram-2"
+            description="Bật: đơn nghỉ phép và làm thêm giờ qua quản lý trực tiếp duyệt trước, rồi tới nhân sự. Tắt: đơn đi thẳng tới nhân sự. Chỉ áp dụng cho đơn tạo mới."
+            fields={[{ name: 'twoStep', label: 'Duyệt 2 cấp (quản lý trực tiếp → nhân sự)', type: 'checkbox', full: true }]}
+            initial={s.approval}
+            save={saveGroup('approval')}
+            onSaved={reload}
+          />
+        </div>
+
+        <div className="col-xl-6">
+          <Section
+            title="Bảo mật đăng nhập"
+            icon="bi-shield-lock"
+            description="Thời hạn phiên áp dụng cho lần đăng nhập tiếp theo."
+            fields={[
+              { name: 'maxFailedLogins', label: 'Số lần nhập sai trước khi khoá', type: 'number', required: true },
+              { name: 'lockMinutes', label: 'Thời gian khoá (phút)', type: 'number', required: true },
+              { name: 'sessionHours', label: 'Thời hạn phiên đăng nhập (giờ)', type: 'number', required: true },
+              { name: 'resetTokenMinutes', label: 'Hiệu lực link đặt lại mật khẩu (phút)', type: 'number', required: true },
+            ]}
+            initial={s.security}
+            save={saveGroup('security')}
+            onSaved={reload}
+          />
+
+          <Card title={<h2 className="h6 mb-0"><i className="bi bi-envelope me-2 text-primary" />Gửi email</h2>}>
+            <dl className="kv small mb-3">
+              <dt>Trạng thái</dt>
+              <dd>{data.mail.configured ? <span className="text-success">Đã cấu hình SMTP ({data.mail.host})</span> : <span className="text-warning-emphasis">Chưa cấu hình — email được in ra log server</span>}</dd>
+              <dt>Người gửi</dt>
+              <dd>{data.mail.from}</dd>
+              <dt>Địa chỉ web</dt>
+              <dd>{data.mail.appUrl}</dd>
+            </dl>
+            <form className="d-flex gap-2" onSubmit={testEmail}>
+              <input type="email" className="form-control" placeholder="email nhận thử" value={testTo} onChange={(e) => setTestTo(e.target.value)} required />
+              <button className="btn btn-outline-primary text-nowrap">Gửi thử</button>
+            </form>
+            {testMsg && <div className="small mt-2">{testMsg}</div>}
+            <p className="small text-body-secondary mb-0 mt-2">
+              Máy chủ email cấu hình trong <code>backend/.env</code> (<code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>...) để mật khẩu email không lưu trong database.
+            </p>
+          </Card>
+
+          <Card title={<h2 className="h6 mb-0"><i className="bi bi-bank me-2 text-primary" />Tham số pháp lý đang áp dụng</h2>}>
+            <table className="table table-sm small mb-2">
+              <tbody>
+                <tr><td>Giảm trừ bản thân / người phụ thuộc</td><td className="num">{money(data.legal.personalDeduction)} / {money(data.legal.dependantDeduction)}</td></tr>
+                <tr><td>Lương cơ sở</td><td className="num">{money(data.legal.baseSalary)}</td></tr>
+                <tr><td>Lương tối thiểu vùng 1–4</td><td className="num">{Object.values(data.legal.minWageRegion).map((v) => money(v)).join(' · ')}</td></tr>
+                <tr><td>Bảo hiểm NLĐ đóng</td><td className="num">{data.legal.insurance.map((r) => pct(r.employeeRate)).join(' + ')}</td></tr>
+              </tbody>
+            </table>
+            <Link to="/settings/legal" className="btn btn-sm btn-outline-primary">Xem lịch sử và cập nhật khi luật thay đổi →</Link>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}

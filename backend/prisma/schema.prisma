@@ -1,0 +1,1023 @@
+// Prisma schema cho ATECH HRM.
+// Phạm vi hiện tại: Core HR (Person/Employment/Position/Assignment) theo mô
+// hình ngày hiệu lực, các danh mục nền, và tham số + kết quả cho phân hệ Lương.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// DANH MỤC NỀN (Catalog)
+// ============================================================
+
+model Company {
+  id                String       @id @default(uuid()) @db.Uuid
+  code              String       @unique
+  name              String
+  taxCode           String?
+  address           String?
+  employments       Employment[]
+  orgStructures     OrgStructure[]
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  @@map("company")
+}
+
+model OrgStructure {
+  id            String         @id @default(uuid()) @db.Uuid
+  companyId     String         @db.Uuid
+  company       Company        @relation(fields: [companyId], references: [id])
+  code          String
+  name          String
+  orgType       OrgType        @default(DEPARTMENT)
+  parentId      String?        @db.Uuid
+  parent        OrgStructure?  @relation("OrgTree", fields: [parentId], references: [id])
+  children      OrgStructure[] @relation("OrgTree")
+  path          String?        // ví dụ /ATECH/Khoi SX/Phong QC/
+  isRoot        Boolean        @default(false)
+  effectiveDate DateTime       @db.Date
+  endDate       DateTime?      @db.Date
+  positions     Position[]
+  assignments   Assignment[]
+  jobOpenings   JobOpening[]
+  isDelete      Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([companyId, code])
+  @@index([parentId])
+  @@map("org_structure")
+}
+
+enum OrgType {
+  COMPANY
+  BLOCK
+  DIVISION
+  DEPARTMENT
+  TEAM
+}
+
+model Job {
+  id             String     @id @default(uuid()) @db.Uuid
+  code           String     @unique
+  name           String
+  jobFamily      String?
+  isHazardous    Boolean    @default(false)
+  maxProbationDays Int?
+  positions      Position[]
+  isDelete       Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  @@map("job")
+}
+
+// Vị trí định biên — từng "ghế" cụ thể thuộc một phòng ban.
+model Position {
+  id             String        @id @default(uuid()) @db.Uuid
+  code           String        @unique
+  jobId          String        @db.Uuid
+  job            Job           @relation(fields: [jobId], references: [id])
+  orgStructureId String        @db.Uuid
+  orgStructure   OrgStructure  @relation(fields: [orgStructureId], references: [id])
+  parentPositionId String?     @db.Uuid
+  parentPosition Position?     @relation("PositionTree", fields: [parentPositionId], references: [id])
+  reports        Position[]    @relation("PositionTree")
+  status         PositionStatus @default(VACANT)
+  isKeyPosition  Boolean       @default(false)
+  headcountFte   Decimal       @default(1) @db.Decimal(4, 2)
+  effectiveDate  DateTime      @db.Date
+  endDate        DateTime?     @db.Date
+  assignments    Assignment[]
+  isDelete       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([orgStructureId])
+  @@index([jobId])
+  @@map("position")
+}
+
+enum PositionStatus {
+  VACANT
+  FILLED
+  FROZEN
+  CLOSED
+}
+
+// ============================================================
+// CON NGƯỜI & QUÁ TRÌNH LÀM VIỆC (Core HR)
+// ============================================================
+
+// Con người — thông tin không phụ thuộc nơi làm việc. Một người một dòng.
+model Person {
+  id              String       @id @default(uuid()) @db.Uuid
+  // Các trường dưới đây là DUY NHẤT nhưng chỉ trong phạm vi bản ghi chưa
+  // xóa mềm. Vì Prisma không khai báo được partial unique index, tính duy
+  // nhất được thực thi bằng partial unique index trong migration SQL
+  // (xem prisma/migrations/manual_partial_unique_indexes.sql).
+  personCode      String
+  fullName        String
+  firstName       String?
+  lastName        String?
+  gender          Gender?
+  dateOfBirth     DateTime?    @db.Date
+  idNo            String?      // CCCD
+  idDateOfIssue   DateTime?    @db.Date
+  idPlaceOfIssue  String?
+  idExpiryDate    DateTime?    @db.Date
+  personalTaxCode String?
+  socialInsNo     String?      // mã BHXH, gắn với con người
+  nationality     String?
+  isForeigner     Boolean      @default(false)
+  email           String?
+  phone           String?
+  employments     Employment[]
+  dependants      Dependant[]
+  relatives       Relative[]
+  educations      PersonEducation[]
+  certificates    PersonCertificate[]
+  experiences     PersonExperience[]
+  skills          PersonSkill[]
+  documents       PersonDocument[]
+  workPermits     WorkPermit[]
+  residenceCards  ResidenceCard[]
+  user            User?
+  hiredFrom       JobApplication[]
+  isDelete        Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  @@map("person")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+// Một lần làm việc tại một pháp nhân. Tuyển lại hoặc chuyển công ty -> dòng mới.
+model Employment {
+  id                  String        @id @default(uuid()) @db.Uuid
+  personId            String        @db.Uuid
+  person              Person        @relation(fields: [personId], references: [id])
+  companyId           String        @db.Uuid
+  company             Company       @relation(fields: [companyId], references: [id])
+  codeEmp             String
+  codeAttendance      String?
+  employmentType      EmploymentType @default(EMPLOYEE)
+  dateHire            DateTime      @db.Date
+  dateSeniority       DateTime?     @db.Date
+  probationEndDate    DateTime?     @db.Date
+  dateTerminate       DateTime?     @db.Date
+  // Lý do nghỉ việc (RESIGN, CONTRACT_END, MUTUAL, REDUNDANCY, DISMISS, RETIRE) và ghi chú
+  terminationType     String?
+  terminationNote     String?
+  previousEmploymentId String?      @db.Uuid
+  status              EmploymentStatus @default(PROBATION)
+  assignments         Assignment[]
+  salaries            EmployeeSalary[]
+  taxProfiles         EmployeeTaxProfile[]
+  payrollResults      PayrollResult[]
+  advances            Advance[]
+  leaveRequests       LeaveRequest[] @relation("LeaveEmployee")
+  leaveApprovals      LeaveRequest[] @relation("LeaveApprover")
+  contracts           LaborContract[]
+  recurringElements   EmployeeElement[]
+  periodElements      PeriodElement[]
+  attendanceRecords   AttendanceRecord[]
+  overtimeRequests    OvertimeRequest[] @relation("OvertimeEmployee")
+  overtimeApprovals   OvertimeRequest[] @relation("OvertimeApprover")
+  isDelete            Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@unique([companyId, codeEmp])
+  @@index([personId])
+  @@index([codeAttendance])
+  @@map("employment")
+}
+
+enum EmploymentType {
+  EMPLOYEE
+  APPRENTICE
+  SEASONAL
+  CONTRACTOR
+}
+
+enum EmploymentStatus {
+  UPCOMING
+  PROBATION
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+// Vị trí công việc theo ngày hiệu lực. Mỗi thay đổi vị trí là một dòng mới.
+model Assignment {
+  id             String       @id @default(uuid()) @db.Uuid
+  employmentId   String       @db.Uuid
+  employment     Employment   @relation(fields: [employmentId], references: [id])
+  positionId     String       @db.Uuid
+  position       Position     @relation(fields: [positionId], references: [id])
+  orgStructureId String       @db.Uuid
+  orgStructure   OrgStructure @relation(fields: [orgStructureId], references: [id])
+  isPrimary      Boolean      @default(true)
+  fte            Decimal      @default(1) @db.Decimal(4, 2)
+  directManagerEmploymentId String? @db.Uuid
+  actionType     AssignmentAction @default(HIRE)
+  actionReason   String?
+  effectiveDate  DateTime     @db.Date
+  endDate        DateTime?    @db.Date
+  isDelete       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([employmentId])
+  @@index([positionId])
+  @@map("assignment")
+}
+
+enum AssignmentAction {
+  HIRE
+  TRANSFER
+  PROMOTION
+  DEMOTION
+  CONCURRENT
+  INTER_COMPANY
+  TERMINATE
+}
+
+model Dependant {
+  id                 String    @id @default(uuid()) @db.Uuid
+  personId           String    @db.Uuid
+  person             Person    @relation(fields: [personId], references: [id])
+  dependantName      String
+  relationship       String
+  dateOfBirth        DateTime? @db.Date
+  dependantTaxCode   String?
+  deductionFromMonth DateTime? @db.Date
+  deductionToMonth   DateTime? @db.Date
+  isDelete           Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  @@index([personId])
+  @@map("dependant")
+}
+
+// ============================================================
+// LƯƠNG (Payroll)
+// ============================================================
+
+// Lương cơ bản theo ngày hiệu lực.
+model EmployeeSalary {
+  id              String     @id @default(uuid()) @db.Uuid
+  employmentId    String     @db.Uuid
+  employment      Employment @relation(fields: [employmentId], references: [id])
+  salaryType      SalaryType @default(GROSS)
+  baseAmount      Decimal    @db.Decimal(18, 4)
+  insuranceSalary Decimal?   @db.Decimal(18, 4)
+  currency        String     @default("VND")
+  effectiveDate   DateTime   @db.Date
+  endDate         DateTime?  @db.Date
+  sourceType      String?
+  sourceId        String?    @db.Uuid
+  isDelete        Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  @@index([employmentId])
+  @@map("employee_salary")
+}
+
+enum SalaryType {
+  GROSS
+  NET
+}
+
+// Hồ sơ thuế của nhân viên theo ngày hiệu lực.
+model EmployeeTaxProfile {
+  id                 String     @id @default(uuid()) @db.Uuid
+  employmentId       String     @db.Uuid
+  employment         Employment @relation(fields: [employmentId], references: [id])
+  taxResidentStatus  TaxResidentStatus @default(RESIDENT)
+  taxMethod          TaxMethod  @default(PROGRESSIVE)
+  hasCommitment08    Boolean    @default(false)
+  effectiveDate      DateTime   @db.Date
+  endDate            DateTime?  @db.Date
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  @@index([employmentId])
+  @@map("employee_tax_profile")
+}
+
+enum TaxResidentStatus {
+  RESIDENT
+  NON_RESIDENT
+}
+
+enum TaxMethod {
+  PROGRESSIVE  // biểu lũy tiến (HĐ >= 3 tháng)
+  FLAT_10      // khấu trừ 10% (HĐ < 3 tháng, cư trú)
+  FLAT_20      // không cư trú
+}
+
+// Tham số pháp lý theo ngày hiệu lực (lương tối thiểu vùng, giảm trừ...).
+model LegalParameter {
+  id            String   @id @default(uuid()) @db.Uuid
+  paramCode     String
+  value         Decimal  @db.Decimal(18, 4)
+  effectiveDate DateTime @db.Date
+  legalDocument String?
+  createdAt     DateTime @default(now())
+  @@unique([paramCode, effectiveDate])
+  @@map("legal_parameter")
+}
+
+// Biểu thuế TNCN lũy tiến từng phần.
+model TaxBracket {
+  id            String   @id @default(uuid()) @db.Uuid
+  scheduleCode  String   // ví dụ PIT_2026_5B
+  bracketNo     Int
+  fromAmount    Decimal  @db.Decimal(18, 4)
+  toAmount      Decimal? @db.Decimal(18, 4) // null = không giới hạn
+  rate          Decimal  @db.Decimal(6, 4)  // 0.05 = 5%
+  quickDeduction Decimal @db.Decimal(18, 4)
+  effectiveDate DateTime @db.Date
+  @@unique([scheduleCode, bracketNo, effectiveDate])
+  @@map("tax_bracket")
+}
+
+// Tỷ lệ đóng bảo hiểm.
+model InsuranceRate {
+  id             String   @id @default(uuid()) @db.Uuid
+  insuranceType  String   // SOCIAL, HEALTH, UNEMPLOYMENT
+  employeeCategory String @default("VN") // VN | FOREIGNER
+  employeeRate   Decimal  @db.Decimal(6, 4)
+  companyRate    Decimal  @db.Decimal(6, 4)
+  capBase        String   // BASE_SALARY | MIN_WAGE_REGION
+  capMultiplier  Int
+  effectiveDate  DateTime @db.Date
+  @@unique([insuranceType, employeeCategory, effectiveDate])
+  @@map("insurance_rate")
+}
+
+// Kỳ lương.
+model PayPeriod {
+  id            String   @id @default(uuid()) @db.Uuid
+  code          String   @unique // 2026-09
+  periodType    String   @default("REGULAR")
+  dateStart     DateTime @db.Date
+  dateEnd       DateTime @db.Date
+  payDate       DateTime? @db.Date
+  status        String   @default("OPEN")
+  results       PayrollResult[]
+  elements      PeriodElement[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@map("pay_period")
+}
+
+// Kết quả tính lương của một nhân viên trong một kỳ.
+model PayrollResult {
+  id                 String     @id @default(uuid()) @db.Uuid
+  payPeriodId        String     @db.Uuid
+  payPeriod          PayPeriod  @relation(fields: [payPeriodId], references: [id])
+  employmentId       String     @db.Uuid
+  employment         Employment @relation(fields: [employmentId], references: [id])
+  grossIncome        Decimal    @db.Decimal(18, 4)
+  taxableIncome      Decimal    @db.Decimal(18, 4)
+  insuranceBase      Decimal    @db.Decimal(18, 4)
+  empInsurance       Decimal    @db.Decimal(18, 4)
+  companyInsurance   Decimal    @db.Decimal(18, 4)
+  selfDeduction      Decimal    @db.Decimal(18, 4)
+  dependantCount     Int        @default(0)
+  dependantDeduction Decimal    @db.Decimal(18, 4)
+  assessableIncome   Decimal    @db.Decimal(18, 4)
+  pitAmount          Decimal    @db.Decimal(18, 4)
+  // Công chuẩn của kỳ và công hưởng lương (sau khi trừ nghỉ không lương, vắng).
+  standardDays       Int?
+  paidDays           Decimal?   @db.Decimal(5, 1)
+  // Khấu trừ khác đã áp dụng (tạm ứng, phạt...) và phần vượt trần 30% hoãn kỳ sau.
+  otherDeductions    Decimal    @default(0) @db.Decimal(18, 4)
+  deferredDeduction  Decimal    @default(0) @db.Decimal(18, 4)
+  netPay             Decimal    @db.Decimal(18, 4)
+  snapshotJson       Json?
+  isLocked           Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  @@unique([payPeriodId, employmentId])
+  @@map("payroll_result")
+}
+
+// ============================================================
+// HỒ SƠ MỞ RỘNG & NGƯỜI THÂN
+// ============================================================
+
+model Relative {
+  id           String    @id @default(uuid()) @db.Uuid
+  personId     String    @db.Uuid
+  person       Person    @relation(fields: [personId], references: [id])
+  relativeName String
+  relationship String    // Cha, Mẹ, Vợ/Chồng, Con...
+  dateOfBirth  DateTime? @db.Date
+  gender       Gender?
+  idNo         String?
+  phone        String?
+  address      String?
+  occupation   String?
+  isEmergencyContact Boolean @default(false)
+  isDelete     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  @@index([personId])
+  @@map("relative")
+}
+
+model PersonEducation {
+  id             String    @id @default(uuid()) @db.Uuid
+  personId       String    @db.Uuid
+  person         Person    @relation(fields: [personId], references: [id])
+  schoolName     String
+  major          String?
+  qualification  String?   // Trung cấp, Cao đẳng, Đại học, Thạc sĩ...
+  fromDate       DateTime? @db.Date
+  toDate         DateTime? @db.Date
+  graduationYear Int?
+  grade          String?
+  isHighest      Boolean   @default(false)
+  isDelete       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  @@index([personId])
+  @@map("person_education")
+}
+
+model PersonCertificate {
+  id              String    @id @default(uuid()) @db.Uuid
+  personId        String    @db.Uuid
+  person          Person    @relation(fields: [personId], references: [id])
+  certificateName String
+  issuedBy        String?
+  issueDate       DateTime? @db.Date
+  expiryDate      DateTime? @db.Date
+  isMandatory     Boolean   @default(false) // chứng chỉ bắt buộc (ATLĐ, PCCC...)
+  filePath        String?
+  isDelete        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  @@index([personId])
+  @@map("person_certificate")
+}
+
+model PersonExperience {
+  id           String    @id @default(uuid()) @db.Uuid
+  personId     String    @db.Uuid
+  person       Person    @relation(fields: [personId], references: [id])
+  companyName  String
+  position     String?
+  fromDate     DateTime? @db.Date
+  toDate       DateTime? @db.Date
+  description  String?
+  reasonLeave  String?
+  isDelete     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  @@index([personId])
+  @@map("person_experience")
+}
+
+model PersonSkill {
+  id        String   @id @default(uuid()) @db.Uuid
+  personId  String   @db.Uuid
+  person    Person   @relation(fields: [personId], references: [id])
+  skillName String
+  level     String?  // Cơ bản, Khá, Thành thạo...
+  isDelete  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([personId])
+  @@map("person_skill")
+}
+
+model PersonDocument {
+  id           String    @id @default(uuid()) @db.Uuid
+  personId     String    @db.Uuid
+  person       Person    @relation(fields: [personId], references: [id])
+  documentType String    // CCCD, Bằng cấp, Sơ yếu lý lịch, Giấy khám SK...
+  documentNo   String?
+  issueDate    DateTime? @db.Date
+  expiryDate   DateTime? @db.Date
+  filePath     String?
+  fileName     String?
+  isVerified   Boolean   @default(false)
+  isDelete     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  @@index([personId])
+  @@map("person_document")
+}
+
+// ============================================================
+// LAO ĐỘNG NƯỚC NGOÀI
+// ============================================================
+
+model WorkPermit {
+  id           String    @id @default(uuid()) @db.Uuid
+  personId     String    @db.Uuid
+  person       Person    @relation(fields: [personId], references: [id])
+  permitNo     String?
+  permitType   WorkPermitType @default(NEW)
+  positionName String?
+  issueDate    DateTime? @db.Date
+  expiryDate   DateTime? @db.Date
+  issuedBy     String?
+  status       WorkPermitStatus @default(ISSUED)
+  filePath     String?
+  isDelete     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  @@index([personId])
+  @@map("work_permit")
+}
+
+enum WorkPermitType {
+  NEW
+  REISSUE
+  EXTEND
+  EXEMPT
+}
+
+enum WorkPermitStatus {
+  PREPARING
+  SUBMITTED
+  ISSUED
+  EXPIRED
+}
+
+model ResidenceCard {
+  id         String    @id @default(uuid()) @db.Uuid
+  personId   String    @db.Uuid
+  person     Person    @relation(fields: [personId], references: [id])
+  cardType   String    // TRC (thẻ tạm trú), VISA
+  cardNo     String?
+  issueDate  DateTime? @db.Date
+  expiryDate DateTime? @db.Date
+  filePath   String?
+  isDelete   Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  @@index([personId])
+  @@map("residence_card")
+}
+
+// ============================================================
+// TẠM ỨNG LƯƠNG
+// ============================================================
+
+model Advance {
+  id           String    @id @default(uuid()) @db.Uuid
+  employmentId String    @db.Uuid
+  employment   Employment @relation(fields: [employmentId], references: [id])
+  requestDate  DateTime  @db.Date
+  amount       Decimal   @db.Decimal(18, 4)
+  reason       String?
+  installments Int       @default(1)
+  status       String    @default("PENDING") // PENDING, APPROVED, DEDUCTING, DONE, CANCELLED
+  schedule     AdvanceSchedule[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  @@index([employmentId])
+  @@map("advance")
+}
+
+model AdvanceSchedule {
+  id          String    @id @default(uuid()) @db.Uuid
+  advanceId   String    @db.Uuid
+  advance     Advance   @relation(fields: [advanceId], references: [id])
+  index       Int       // kỳ thứ mấy
+  amount      Decimal   @db.Decimal(18, 4)
+  payPeriodId String?   @db.Uuid  // kỳ lương khấu trừ (gán khi tới kỳ)
+  isDeducted  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  @@index([advanceId])
+  @@map("advance_schedule")
+}
+
+// ============================================================
+// ĐĂNG NHẬP & PHÂN QUYỀN
+// ============================================================
+
+// Vai trò quyết định API nào được gọi (xem common/middleware/auth.ts).
+enum Role {
+  ADMIN       // quản trị hệ thống, quản lý tài khoản
+  HR          // nhân sự: hồ sơ, tổ chức, hợp đồng
+  ACCOUNTANT  // kế toán: tính lương, bảo hiểm, thuế
+  EMPLOYEE    // nhân viên: chỉ xem thông tin của chính mình
+}
+
+// Tài khoản đăng nhập. Có thể gắn với một Person (nhân viên tự phục vụ).
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  username     String    @unique
+  passwordHash String
+  role         Role      @default(EMPLOYEE)
+  personId     String?   @unique @db.Uuid
+  person       Person?   @relation(fields: [personId], references: [id])
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  // Bảo mật đăng nhập
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+  mustChangePassword Boolean   @default(false)
+  // Token cấp trước thời điểm này bị từ chối (đổi mật khẩu → đăng xuất mọi nơi).
+  passwordChangedAt  DateTime?
+  resetTokens        PasswordResetToken[]
+  reviewedLeaves LeaveRequest[] @relation("LeaveReviewer")
+  reviewedOvertimes OvertimeRequest[] @relation("OvertimeReviewer")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  @@map("app_user")
+}
+
+// ============================================================
+// NGHỈ PHÉP
+// ============================================================
+
+// Loại nghỉ: phép năm, nghỉ ốm, việc riêng có lương, không lương...
+model LeaveType {
+  id          String         @id @default(uuid()) @db.Uuid
+  code        String         @unique
+  name        String
+  isPaid      Boolean        @default(true)
+  // Số ngày được nghỉ mỗi năm. null = không giới hạn theo năm.
+  daysPerYear Decimal?       @db.Decimal(5, 1)
+  // Cộng 1 ngày cho mỗi 5 năm thâm niên (Điều 114) — dùng cho phép năm.
+  seniorityBonus      Boolean  @default(false)
+  // Chuyển phép còn lại sang năm sau: tối đa bao nhiêu ngày, dùng đến hết tháng nào.
+  carryOverMaxDays    Decimal? @db.Decimal(5, 1)
+  carryOverUntilMonth Int?
+  isActive    Boolean        @default(true)
+  requests    LeaveRequest[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  @@map("leave_type")
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model LeaveRequest {
+  id           String      @id @default(uuid()) @db.Uuid
+  employmentId String      @db.Uuid
+  employment   Employment  @relation("LeaveEmployee", fields: [employmentId], references: [id])
+  leaveTypeId  String      @db.Uuid
+  leaveType    LeaveType   @relation(fields: [leaveTypeId], references: [id])
+  fromDate     DateTime    @db.Date
+  toDate       DateTime    @db.Date
+  isHalfDay    Boolean     @default(false)
+  // Nửa ngày nghỉ buổi nào: AM (sáng) / PM (chiều). Hai đơn nửa ngày khác buổi được cùng ngày.
+  halfDayPart  String?
+  // Số ngày làm việc thực nghỉ (không tính thứ 7, chủ nhật).
+  days         Decimal     @db.Decimal(5, 1)
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  // Duyệt 2 bước: MANAGER (chờ quản lý trực tiếp) → HR (chờ nhân sự) → APPROVED.
+  approvalStage       ApprovalStage @default(HR)
+  approverEmploymentId String?      @db.Uuid
+  approverEmployment  Employment?   @relation("LeaveApprover", fields: [approverEmploymentId], references: [id])
+  managerReviewedById String?       @db.Uuid
+  managerReviewedAt   DateTime?
+  managerNote         String?
+  reviewedById String?     @db.Uuid
+  reviewedBy   User?       @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  reviewNote   String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  @@index([employmentId])
+  @@index([status])
+  @@map("leave_request")
+}
+
+// ============================================================
+// CHẤM CÔNG
+// ============================================================
+
+enum AttendanceStatus {
+  PRESENT  // đi làm
+  LATE     // đi muộn
+  REMOTE   // làm từ xa
+  ABSENT   // vắng không phép
+  LEAVE    // nghỉ phép (đã duyệt)
+  HOLIDAY  // nghỉ lễ
+}
+
+// Một ngày công của một nhân viên.
+model AttendanceRecord {
+  id           String           @id @default(uuid()) @db.Uuid
+  employmentId String           @db.Uuid
+  employment   Employment       @relation(fields: [employmentId], references: [id])
+  workDate     DateTime         @db.Date
+  checkIn      DateTime?
+  checkOut     DateTime?
+  status       AttendanceStatus @default(PRESENT)
+  note         String?
+  // SELF: nhân viên tự chấm; MANUAL: nhân sự nhập/sửa
+  source       String           @default("MANUAL")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  @@unique([employmentId, workDate])
+  @@index([workDate])
+  @@map("attendance_record")
+}
+
+// ============================================================
+// TUYỂN DỤNG
+// ============================================================
+
+enum OpeningStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+// Yêu cầu / tin tuyển dụng.
+model JobOpening {
+  id             String           @id @default(uuid()) @db.Uuid
+  code           String           @unique
+  title          String
+  orgStructureId String?          @db.Uuid
+  orgStructure   OrgStructure?    @relation(fields: [orgStructureId], references: [id])
+  quantity       Int              @default(1)
+  description    String?
+  status         OpeningStatus    @default(OPEN)
+  openDate       DateTime         @db.Date
+  closeDate      DateTime?        @db.Date
+  applications   JobApplication[]
+  isDelete       Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  @@map("job_opening")
+}
+
+enum ApplicationStage {
+  APPLIED    // mới nộp
+  SCREENING  // sàng lọc hồ sơ
+  INTERVIEW  // phỏng vấn
+  OFFER      // đã gửi đề nghị
+  HIRED      // đã nhận việc
+  REJECTED   // loại
+}
+
+// Hồ sơ ứng tuyển của một ứng viên vào một tin tuyển dụng.
+model JobApplication {
+  id            String           @id @default(uuid()) @db.Uuid
+  jobOpeningId  String           @db.Uuid
+  jobOpening    JobOpening       @relation(fields: [jobOpeningId], references: [id])
+  fullName      String
+  email         String?
+  phone         String?
+  source        String?          // website, giới thiệu, TopCV...
+  cvUrl         String?
+  stage         ApplicationStage @default(APPLIED)
+  interviewAt   DateTime?
+  rating        Int?             // 1-5
+  note          String?
+  // Nhân sự được tạo khi ứng viên nhận việc
+  hiredPersonId String?          @db.Uuid
+  hiredPerson   Person?          @relation(fields: [hiredPersonId], references: [id])
+  isDelete      Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  @@index([jobOpeningId])
+  @@map("job_application")
+}
+
+// ============================================================
+// KHOẢN LƯƠNG (phụ cấp, thưởng, khấu trừ)
+// ============================================================
+
+enum ElementType {
+  EARNING    // khoản thu nhập
+  DEDUCTION  // khoản khấu trừ (ngoài BH và thuế)
+}
+
+enum TaxTreatment {
+  TAXABLE         // chịu thuế toàn bộ
+  PARTIAL_EXEMPT  // miễn thuế trong mức taxExemptLimit
+  EXEMPT          // miễn thuế toàn bộ
+}
+
+// Danh mục khoản lương.
+model PayElement {
+  id              String       @id @default(uuid()) @db.Uuid
+  code            String       @unique
+  name            String
+  type            ElementType  @default(EARNING)
+  taxTreatment    TaxTreatment @default(TAXABLE)
+  taxExemptLimit  Decimal?     @db.Decimal(18, 4)
+  // Có cộng vào lương đóng bảo hiểm không (chỉ áp dụng cho EARNING).
+  isInsuranceBase Boolean      @default(false)
+  // Khoản cố định có chia theo ngày công thực tế không.
+  isProrated      Boolean      @default(true)
+  isActive        Boolean      @default(true)
+  employeeElements EmployeeElement[]
+  periodElements  PeriodElement[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  @@map("pay_element")
+}
+
+// Khoản cố định hàng tháng của một nhân viên, theo ngày hiệu lực.
+model EmployeeElement {
+  id            String     @id @default(uuid()) @db.Uuid
+  employmentId  String     @db.Uuid
+  employment    Employment @relation(fields: [employmentId], references: [id])
+  payElementId  String     @db.Uuid
+  payElement    PayElement @relation(fields: [payElementId], references: [id])
+  amount        Decimal    @db.Decimal(18, 4)
+  effectiveDate DateTime   @db.Date
+  endDate       DateTime?  @db.Date
+  isDelete      Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  @@index([employmentId])
+  @@map("employee_element")
+}
+
+// Khoản phát sinh trong một kỳ lương (thưởng, phạt, truy lĩnh...). Không chia theo công.
+model PeriodElement {
+  id           String     @id @default(uuid()) @db.Uuid
+  payPeriodId  String     @db.Uuid
+  payPeriod    PayPeriod  @relation(fields: [payPeriodId], references: [id])
+  employmentId String     @db.Uuid
+  employment   Employment @relation(fields: [employmentId], references: [id])
+  payElementId String     @db.Uuid
+  payElement   PayElement @relation(fields: [payElementId], references: [id])
+  amount       Decimal    @db.Decimal(18, 4)
+  note         String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  @@index([payPeriodId])
+  @@index([employmentId])
+  @@map("period_element")
+}
+
+// ============================================================
+// HỢP ĐỒNG LAO ĐỘNG (văn bản)
+// ============================================================
+
+enum ContractType {
+  PROBATION    // hợp đồng thử việc
+  FIXED_TERM   // xác định thời hạn (tối đa 36 tháng — Điều 20 BLLĐ 2019)
+  INDEFINITE   // không xác định thời hạn
+  SERVICE      // hợp đồng dịch vụ / cộng tác viên (không phải HĐLĐ)
+}
+
+model LaborContract {
+  id               String          @id @default(uuid()) @db.Uuid
+  employmentId     String          @db.Uuid
+  employment       Employment      @relation(fields: [employmentId], references: [id])
+  contractNo       String          @unique
+  contractType     ContractType
+  // Phụ lục hợp đồng: trỏ tới hợp đồng gốc.
+  parentId         String?         @db.Uuid
+  parent           LaborContract?  @relation("ContractAppendix", fields: [parentId], references: [id])
+  appendices       LaborContract[] @relation("ContractAppendix")
+  signDate         DateTime        @db.Date
+  startDate        DateTime        @db.Date
+  endDate          DateTime?       @db.Date
+  salaryAmount     Decimal?        @db.Decimal(18, 4)
+  jobTitle         String?
+  note             String?
+  filePath         String?
+  // Chấm dứt trước hạn
+  terminatedDate   DateTime?       @db.Date
+  terminateReason  String?
+  isDelete         Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  @@index([employmentId])
+  @@index([endDate])
+  @@map("labor_contract")
+}
+
+// ============================================================
+// NGÀY LỄ & TĂNG CA
+// ============================================================
+
+// Ngày nghỉ lễ, Tết có hưởng lương (Điều 112 BLLĐ 2019) và ngày nghỉ bù.
+model Holiday {
+  id        String   @id @default(uuid()) @db.Uuid
+  date      DateTime @unique @db.Date
+  name      String
+  createdAt DateTime @default(now())
+  @@map("holiday")
+}
+
+enum OvertimeType {
+  WEEKDAY  // ngày thường: 150%
+  WEEKEND  // ngày nghỉ hằng tuần: 200%
+  HOLIDAY  // ngày lễ, Tết: 300%
+}
+
+enum OvertimeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+// Đơn làm thêm giờ. Loại và hệ số được xác định theo ngày khi tạo đơn.
+model OvertimeRequest {
+  id           String         @id @default(uuid()) @db.Uuid
+  employmentId String         @db.Uuid
+  employment   Employment     @relation("OvertimeEmployee", fields: [employmentId], references: [id])
+  workDate     DateTime       @db.Date
+  hours        Decimal        @db.Decimal(4, 1)
+  otType       OvertimeType
+  // Làm ban đêm (22h–6h): hệ số cao hơn (Điều 98 khoản 3).
+  isNight      Boolean        @default(false)
+  // Hệ số lương, vd 1.5 / 2.1 / 3.9 — lưu lại để kỳ lương cũ không đổi khi quy định đổi.
+  multiplier   Decimal        @db.Decimal(4, 2)
+  reason       String?
+  status       OvertimeStatus @default(PENDING)
+  approvalStage       ApprovalStage @default(HR)
+  approverEmploymentId String?      @db.Uuid
+  approverEmployment  Employment?   @relation("OvertimeApprover", fields: [approverEmploymentId], references: [id])
+  managerReviewedById String?       @db.Uuid
+  managerReviewedAt   DateTime?
+  managerNote         String?
+  reviewedById String?        @db.Uuid
+  reviewedBy   User?          @relation("OvertimeReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  reviewNote   String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  @@index([employmentId])
+  @@index([workDate])
+  @@map("overtime_request")
+}
+
+// ============================================================
+// NHẬT KÝ THAO TÁC
+// ============================================================
+
+// REQUEST: một request ghi dữ liệu; CHANGE: một thay đổi dữ liệu (trước/sau);
+// AUTH: đăng nhập. Các dòng cùng một request có chung requestId.
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  at        DateTime @default(now())
+  requestId String?
+  userId    String?  @db.Uuid
+  username  String?
+  ip        String?
+  kind      String
+  action    String
+  entity    String?
+  entityId  String?
+  summary   String?
+  status    Int?
+  before    Json?
+  after     Json?
+  @@index([at])
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([requestId])
+  @@map("audit_log")
+}
+
+// Token đặt lại mật khẩu (quên mật khẩu). Chỉ lưu mã băm SHA-256, dùng một lần.
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  @@index([userId])
+  @@map("password_reset_token")
+}
+
+// Bước duyệt của đơn đang chờ: quản lý trực tiếp hoặc nhân sự.
+enum ApprovalStage {
+  MANAGER
+  HR
+}
+
+// Cấu hình hệ thống: mỗi nhóm (attendance, payroll, approval, security) một dòng JSON.
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  @@map("system_setting")
+}
