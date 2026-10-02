@@ -1,3 +1,4 @@
+import { jobsState, runDailyJobs } from '../jobs/daily';
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../common/utils/asyncHandler';
@@ -121,6 +122,21 @@ router.post(
     const { to } = z.object({ to: z.string().email('Email không hợp lệ') }).parse(req.body);
     await sendMail(to, 'Email thử từ ATECH HRM', 'Nếu bạn nhận được email này, cấu hình gửi email của hệ thống đã hoạt động.');
     res.json({ data: { sent: true, configured: !!env.SMTP_HOST } });
+  }),
+);
+
+// ---------- Nhắc việc hằng ngày ----------
+/** GET /api/settings/jobs — lần chạy gần nhất. POST /api/settings/jobs/daily — chạy ngay (bỏ qua giờ / trạng thái). */
+router.get(
+  '/jobs',
+  asyncHandler(async (_req, res) => {
+    res.json({ data: { state: await jobsState(), cronEnabled: !!env.CRON_SECRET } });
+  }),
+);
+router.post(
+  '/jobs/daily',
+  asyncHandler(async (_req, res) => {
+    res.json({ data: await runDailyJobs({ force: true }) });
   }),
 );
 

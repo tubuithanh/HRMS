@@ -224,6 +224,8 @@ async function main() {
     await prisma.$transaction([
       prisma.pitCertificate.deleteMany(),
       prisma.notification.deleteMany(),
+      // Nhắc việc hằng ngày chạy lại từ đầu trên dữ liệu mới
+      prisma.systemSetting.deleteMany({ where: { key: 'jobsState' } }),
       prisma.checklistTask.deleteMany(),
       prisma.employeeChecklist.deleteMany(),
       prisma.assetAssignment.deleteMany(),

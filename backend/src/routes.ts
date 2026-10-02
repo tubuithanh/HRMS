@@ -19,6 +19,7 @@ import peopleRoutes from './modules/people/people.routes';
 import benefitsRoutes from './modules/benefits/benefits.routes';
 import assetRoutes from './modules/assets/asset.routes';
 import checklistRoutes from './modules/checklist/checklist.routes';
+import cronRoutes from './modules/jobs/cron.routes';
 
 /**
  * Phân quyền theo phân hệ: `write` được mọi phương thức,
@@ -39,6 +40,8 @@ const router = Router();
 // Công khai
 router.use('/health', healthRoutes);
 router.use('/auth', authRoutes);
+// Lịch chạy bên ngoài (khoá bí mật, không cần đăng nhập)
+router.use('/cron', cronRoutes);
 
 // Mọi tài khoản đã đăng nhập: dữ liệu của chính mình
 router.use('/me', requireAuth, meRoutes);

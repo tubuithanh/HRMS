@@ -121,7 +121,12 @@ hồ sơ nhân sự thì mới dùng được phần này.
   (người không có quản lý do nhân sự chấm) → điểm bình quân gia quyền, xếp loại A ≥ 4,5 · B ≥ 3,5 · C ≥ 2,5 · D.
   Nhân viên chỉ thấy điểm của quản lý khi phiếu hoàn tất.
 - **Thông báo:** chuông trên menu (+ email nếu cấu hình SMTP) — đơn chờ duyệt, kết quả duyệt, phiếu lương mới, khen thưởng /
-  kỷ luật, được cử đi học, việc cần đánh giá; nhân sự được nhắc hợp đồng hết hạn trong 30 ngày và sinh nhật.
+  kỷ luật, được cử đi học, việc cần đánh giá.
+- **Nhắc việc hằng ngày** (sau 7:00, mỗi mục nhắc một lần, kèm một email tổng hợp): nhân sự / quản trị — hợp đồng hết hạn trong 30 ngày,
+  sinh nhật, hết thử việc trong 7 ngày, chứng chỉ đào tạo hết hạn trong 30 ngày, giấy phép lao động / thẻ tạm trú hết hạn trong 60 ngày;
+  người được giao — việc tiếp nhận / nghỉ việc đến hạn, quá hạn; người đánh giá — phiếu đánh giá còn ≤ 3 ngày.
+  Chạy bằng lịch trong server, tự chạy bù khi có người mở ứng dụng, hoặc dịch vụ ngoài gọi `POST /api/cron/daily`
+  với header `X-Cron-Secret` (đặt biến `CRON_SECRET` ≥ 16 ký tự). Cấu hình hệ thống có nút *Chạy ngay* và lần chạy gần nhất.
 - **Chế độ BHXH** (Luật BHXH 2024 — cần cán bộ BHXH / kế toán đối chiếu): ốm đau (30/40/60 ngày/năm theo số năm đóng,
   +10 nghề nặng nhọc; 75% lương tháng liền kề ÷ 24), chăm con ốm (20/15 ngày theo tuổi con), thai sản (sinh con 6 tháng +1 tháng
   mỗi con từ con thứ hai, 100% bình quân 6 tháng, trợ cấp một lần 2 × lương cơ sở mỗi con; khám thai; sảy thai theo tuổi thai;
@@ -246,6 +251,13 @@ Có migration mới thì chạy `npx prisma migrate deploy` (và `npm run seed` 
 | `P1002 … advisory lock` khi migrate | Đặt `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1`, không dùng địa chỉ `-pooler` |
 | `violates RESTRICT setting of foreign key` khi `seed:demo` | Một lần seed khác còn chạy ngầm → `taskkill /F /IM node.exe` rồi chạy lại |
 | Admin đăng nhập sai mật khẩu | `npm run seed` chỉ đặt mật khẩu admin ở lần tạo đầu tiên |
+
+### Nhắc việc khi server ngủ
+
+Render gói miễn phí ngủ khi không có người dùng nên lịch trong server có thể lỡ 7:00. Để nhắc đúng giờ:
+1. Đặt `CRON_SECRET` (chuỗi ngẫu nhiên ≥ 16 ký tự) trong Environment của backend.
+2. Tạo lịch trên cron-job.org (miễn phí): `POST https://<backend>/api/cron/daily`, mỗi ngày 7:05 (giờ Việt Nam),
+   header `X-Cron-Secret: <CRON_SECRET>`. Lời gọi này cũng đánh thức server.
 
 ### Lưu ý gói miễn phí
 

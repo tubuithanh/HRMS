@@ -3,14 +3,16 @@ import { formatDate, isWeekend, monthRange } from '../../common/utils/dates';
 import { shiftService } from '../shift/shift.service';
 import { shiftWindow } from '../shift/shift.logic';
 import { holidaySet } from './overtime.service';
+import { getSettings } from '../settings/settings.service';
 
 /**
  * Đề xuất làm thêm giờ từ dữ liệu chấm công (không tự tính tiền — phải có đơn được duyệt):
- * - Ngày làm việc: ở lại sau giờ kết thúc ca từ 60 phút → số giờ = phần sau giờ ca, làm tròn xuống 0,5 giờ.
+ * - Ngày làm việc: ở lại sau giờ kết thúc ca từ N phút (Cấu hình, mặc định 60) → số giờ = phần sau giờ ca, làm tròn xuống 0,5 giờ.
  * - Thứ 7, chủ nhật (không có lịch ca), ngày lễ: cả thời gian có mặt trừ 1 giờ nghỉ trưa (nếu ≥ 6 giờ).
  * Bỏ qua ngày đã có đơn làm thêm đang chờ / đã duyệt.
  */
-export async function overtimeSuggestions(month: string, employmentId?: string, minMinutes = 60) {
+export async function overtimeSuggestions(month: string, employmentId?: string, minMinutesArg?: number) {
+  const minMinutes = minMinutesArg ?? (await getSettings()).attendance.overtimeSuggestMinutes;
   const { start, end } = monthRange(month);
   const records = await prisma.attendanceRecord.findMany({
     where: {

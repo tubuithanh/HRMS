@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api/client';
 import { Card, ErrorBox, FieldDef, FormFields, Loading, PageHeader, toBody, useToast } from '../components/ui';
 import { useFetch } from '../lib/hooks';
-import { money } from '../lib/format';
+import { dateTime, money } from '../lib/format';
 
 interface SettingsData {
   settings: {
-    attendance: { workStart: string; workEnd: string; lateGraceMinutes: number; nightAllowancePercent: number; deductLateEarly: boolean };
+    attendance: { workStart: string; workEnd: string; lateGraceMinutes: number; nightAllowancePercent: number; deductLateEarly: boolean; overtimeSuggestMinutes: number };
     checkin: { mode: string; lat: number | null; lng: number | null; radiusMeters: number; allowedIps: string };
     payroll: { defaultRegion: number; payDay: number };
     approval: { twoStep: boolean };
@@ -136,6 +136,7 @@ export default function SettingsPage() {
               { name: 'workEnd', label: 'Giờ tan ca (HH:mm)', required: true, placeholder: '17:30' },
               { name: 'lateGraceMinutes', label: 'Số phút cho phép đi muộn', type: 'number', required: true },
               { name: 'nightAllowancePercent', label: 'Phụ cấp làm đêm (% lương giờ, tối thiểu 30)', type: 'number', required: true },
+              { name: 'overtimeSuggestMinutes', label: 'Gợi ý làm thêm giờ khi ở lại sau ca từ (phút)', type: 'number', required: true },
               { name: 'deductLateEarly', label: 'Trừ lương theo số phút đi muộn / về sớm', type: 'checkbox', full: true },
             ]}
             initial={s.attendance}
@@ -218,6 +219,7 @@ export default function SettingsPage() {
             onSaved={reload}
           />
 
+          <DailyJobsCard />
           <Card title={<h2 className="h6 mb-0"><i className="bi bi-envelope me-2 text-primary" />Gửi email</h2>}>
             <dl className="kv small mb-3">
               <dt>Trạng thái</dt>
@@ -251,5 +253,57 @@ export default function SettingsPage() {
         </div>
       </div>
     </>
+  );
+}
+
+interface JobsInfo {
+  state: { lastDailyRun?: string; lastSummary?: { created: number; users: number; emails: number; ranAt: string } } | null;
+  cronEnabled: boolean;
+}
+
+/** Nhắc việc hằng ngày: lần chạy gần nhất, chạy ngay, hướng dẫn gọi từ dịch vụ lịch bên ngoài. */
+function DailyJobsCard() {
+  const { data, reload } = useFetch<JobsInfo>('/settings/jobs');
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const last = data?.state?.lastSummary;
+  async function run() {
+    setBusy(true);
+    try {
+      const r = await api.post('/settings/jobs/daily');
+      toast(`Đã chạy: ${r.data.data.created} thông báo mới cho ${r.data.data.users} người`);
+      reload();
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+  const apiBase = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api') as string;
+  return (
+    <Card title={<h2 className="h6 mb-0"><i className="bi bi-alarm me-2 text-primary" />Nhắc việc hằng ngày</h2>}>
+      <p className="small text-body-secondary mt-0">
+        Mỗi ngày sau 7:00: hợp đồng / thử việc / chứng chỉ / giấy phép lao động sắp hết hạn, sinh nhật, việc tiếp nhận – nghỉ việc đến hạn,
+        phiếu đánh giá sắp hết hạn. Mỗi mục chỉ nhắc một lần; người có email nhận thêm email tổng hợp (khi đã cấu hình SMTP).
+      </p>
+      <dl className="kv small mb-3">
+        <dt>Lần chạy gần nhất</dt>
+        <dd>{last ? `${dateTime(last.ranAt)} · ${last.created} thông báo mới cho ${last.users} người · ${last.emails} email` : 'Chưa chạy'}</dd>
+        <dt>Gọi từ bên ngoài</dt>
+        <dd>
+          {data?.cronEnabled ? (
+            <span className="text-success">Đã bật (CRON_SECRET)</span>
+          ) : (
+            <span className="text-warning-emphasis">Chưa bật — đặt CRON_SECRET trong biến môi trường backend</span>
+          )}
+        </dd>
+      </dl>
+      <button className="btn btn-outline-primary btn-sm" disabled={busy} onClick={run}>{busy ? 'Đang chạy…' : 'Chạy ngay'}</button>
+      <p className="small text-body-secondary mb-0 mt-3">
+        Render gói miễn phí ngủ khi không có người dùng nên lịch trong server có thể lỡ giờ (hệ thống tự chạy bù khi có người mở ứng dụng).
+        Để chạy đúng mỗi sáng: tạo lịch trên <code>cron-job.org</code> gọi <code>POST {apiBase}/cron/daily</code> lúc 7:05 với header{' '}
+        <code>X-Cron-Secret: &lt;CRON_SECRET&gt;</code>.
+      </p>
+    </Card>
   );
 }

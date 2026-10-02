@@ -4,10 +4,13 @@ process.env.TZ ??= 'Asia/Ho_Chi_Minh';
 import { createApp } from './app';
 import { env } from './config/env';
 import { prisma } from './config/prisma';
+import { startScheduler } from './modules/jobs/daily';
 
 const app = createApp();
 
 const server = app.listen(env.PORT, () => {
+  // Nhắc việc hằng ngày (khi server đang chạy); test không mở cổng nên không chạy.
+  startScheduler();
   console.log(`✅ ATECH HRM API đang chạy tại http://localhost:${env.PORT}`);
   console.log(`   Kiểm tra: http://localhost:${env.PORT}/api/health`);
   console.log(`   Môi trường: ${env.NODE_ENV}`);

@@ -1,7 +1,6 @@
 import { Role } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { sendMail } from '../../common/mailer';
-import { addDays, formatDate, todayDate } from '../../common/utils/dates';
 import { AuthUser } from '../auth/token';
 
 /**
@@ -67,51 +66,12 @@ export const notify = {
   }),
 };
 
-// ---------- Nhắc việc định kỳ (sinh khi người dùng mở thông báo, tối đa 1 lần / giờ / người) ----------
-
-const lastDigest = new Map<string, number>();
-
-async function dailyDigest(user: AuthUser) {
-  const last = lastDigest.get(user.id) ?? 0;
-  if (Date.now() - last < 60 * 60 * 1000) return;
-  lastDigest.set(user.id, Date.now());
-  const today = todayDate();
-  const key = formatDate(today);
-  const rows: Array<{ userId: string; title: string; body: string | null; link: string | null; dedupeKey: string }> = [];
-
-  if (user.role === 'ADMIN' || user.role === 'HR') {
-    // Hợp đồng hết hạn trong 30 ngày tới.
-    const expiring = await prisma.laborContract.findMany({
-      where: {
-        isDelete: false,
-        parentId: null,
-        terminatedDate: null,
-        endDate: { gte: today, lte: addDays(today, 30) },
-        employment: { status: { in: ['ACTIVE', 'PROBATION'] } },
-      },
-      select: { id: true, contractNo: true, endDate: true, employment: { select: { person: { select: { id: true, fullName: true } } } } },
-    });
-    for (const c of expiring) {
-      const p = c.employment.person;
-      rows.push({
-        userId: user.id,
-        title: `Hợp đồng sắp hết hạn: ${p.fullName}`,
-        body: `Hợp đồng ${c.contractNo} hết hạn ngày ${formatDate(c.endDate!).split('-').reverse().join('/')}. Gia hạn hoặc ký hợp đồng mới.`,
-        link: `/persons/${p.id}`,
-        dedupeKey: `contract:${c.id}`,
-      });
-    }
-    // Sinh nhật hôm nay.
-    const md = `${String(today.getUTCMonth() + 1).padStart(2, '0')}-${String(today.getUTCDate()).padStart(2, '0')}`;
-    const people = await prisma.$queryRaw<Array<{ id: string; fullName: string }>>`
-      SELECT p.id, p."fullName" FROM person p
-      WHERE p."isDelete" = false AND to_char(p."dateOfBirth", 'MM-DD') = ${md}
-        AND EXISTS (SELECT 1 FROM employment e WHERE e."personId" = p.id AND e."isDelete" = false AND e.status IN ('ACTIVE', 'PROBATION'))`;
-    for (const p of people) {
-      rows.push({ userId: user.id, title: `🎂 Sinh nhật hôm nay: ${p.fullName}`, body: null, link: `/persons/${p.id}`, dedupeKey: `birthday:${key}:${p.id}` });
-    }
-  }
-  if (rows.length) await prisma.notification.createMany({ data: rows, skipDuplicates: true });
+// ---------- Nhắc việc định kỳ ----------
+// Server có thể ngủ lúc 7:00 (Render miễn phí) → khi có người mở thông báo thì chạy bù nếu hôm nay chưa chạy.
+// Không chờ: lần mở đầu tiên trong ngày vẫn trả về ngay, thông báo mới hiện ở lần cập nhật kế tiếp.
+async function dailyDigest(_user: AuthUser) {
+  const { runDailyJobs } = await import('../jobs/daily');
+  void runDailyJobs().catch((e) => console.error('Nhắc việc hằng ngày lỗi:', e instanceof Error ? e.message : e));
 }
 
 export const notificationService = {

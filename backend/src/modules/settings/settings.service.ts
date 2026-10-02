@@ -20,6 +20,8 @@ export const settingsSchema = z.object({
       nightAllowancePercent: z.number().int().min(30, 'Tối thiểu 30% (Điều 98 BLLĐ)').max(200),
       /** Trừ lương theo số phút đi muộn / về sớm (chỉ trả lương cho thời gian thực làm). */
       deductLateEarly: z.boolean(),
+      /** Gợi ý làm thêm giờ khi ở lại sau giờ ca từ số phút này. */
+      overtimeSuggestMinutes: z.number().int().min(15).max(240),
     })
     .refine((v) => v.workEnd > v.workStart, { message: 'Giờ tan ca phải sau giờ vào làm', path: ['workEnd'] }),
   payroll: z.object({
@@ -53,7 +55,7 @@ export type Settings = z.infer<typeof settingsSchema>;
 type Group = keyof Settings;
 
 export const DEFAULT_SETTINGS: Settings = {
-  attendance: { workStart: '08:30', workEnd: '17:30', lateGraceMinutes: 0, nightAllowancePercent: 30, deductLateEarly: false },
+  attendance: { workStart: '08:30', workEnd: '17:30', lateGraceMinutes: 0, nightAllowancePercent: 30, deductLateEarly: false, overtimeSuggestMinutes: 60 },
   payroll: { defaultRegion: 1, payDay: 5 },
   approval: { twoStep: true },
   checkin: { mode: 'OFF', lat: null, lng: null, radiusMeters: 200, allowedIps: '' },
