@@ -373,19 +373,23 @@ không lưu dữ liệu nhân sự ngoại tuyến.
 
 ### 8.1. Gửi email bằng Gmail OAuth2
 
-Không cần mật khẩu Gmail hay mật khẩu ứng dụng.
+Cấu hình **ngay trên web**, không cần mật khẩu Gmail, không cần dòng lệnh: *Cấu hình hệ thống → Gửi email*.
 
 1. https://console.cloud.google.com → tạo project → *APIs & Services → Library* → bật **Gmail API**.
 2. *Google Auth Platform*: đối tượng **External** (hoặc **Internal** với Google Workspace), điền tên ứng dụng, email hỗ trợ;
-   ở *Audience* bấm **Publish app** — để ở *Testing* thì refresh token **hết hạn sau 7 ngày**.
-3. *Clients → Create client* → loại **Desktop app** → chép Client ID, Client secret.
-4. Đặt `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` vào `backend/.env` → `npm run gmail:token` → mở đường dẫn, đăng nhập Gmail dùng để gửi,
-   bấm *Cho phép* → chép refresh token.
-5. Đặt `GMAIL_USER`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` cho backend. Nếu hosting chặn cổng SMTP, thêm
-   `GMAIL_SEND_VIA=api` (gửi qua HTTPS).
-6. Kiểm tra: *Cấu hình hệ thống → Gửi email → Gửi thử* — lỗi (sai client, token bị thu hồi…) được báo rõ.
+   ở *Audience* bấm **Publish app** — để ở *Testing* thì kết nối **hết hạn sau 7 ngày**.
+3. *Clients → Create client* → loại **Web application** → *Authorized redirect URIs* thêm địa chỉ hiện ở khung Gửi email
+   (dạng `https://<api>/api/settings/mail/oauth/callback`, có nút sao chép) → chép Client ID, Client secret.
+4. Trên web: *Cách gửi* = **Gmail OAuth2**, dán Client ID, Client secret, chọn *Gửi qua* (SMTP, hoặc **Gmail API** nếu hosting chặn cổng SMTP —
+   khuyên dùng trên Render) → bấm **Kết nối Gmail** → đăng nhập Gmail dùng để gửi → **Cho phép**. Hệ thống tự lưu refresh token và địa chỉ gửi.
+5. Bấm **Gửi thử** — lỗi (sai client, token bị thu hồi…) được báo rõ.
 
-Gmail cá nhân gửi khoảng 500 người nhận / ngày (Workspace ~2.000). Thu hồi quyền: https://myaccount.google.com/permissions.
+- Client secret, refresh token, mật khẩu SMTP được **mã hoá (AES-256-GCM)** khi lưu, không bao giờ hiển thị lại; khoá dẫn xuất từ `JWT_SECRET`
+  — đổi `JWT_SECRET` thì phải nhập / kết nối lại.
+- Cùng khung đó cấu hình được **SMTP thường**, hoặc chọn **Theo biến môi trường** để dùng cách cũ (`GMAIL_*`, `SMTP_*`; refresh token lấy bằng
+  `npm run gmail:token` với client loại *Desktop app*), hoặc **Không gửi**.
+- Gmail cá nhân gửi khoảng 500 người nhận / ngày (Workspace ~2.000). Thu hồi quyền: https://myaccount.google.com/permissions
+  (hoặc bấm **Ngắt kết nối**).
 
 ### 8.2. Nhắc việc hằng ngày
 

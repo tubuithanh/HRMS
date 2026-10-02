@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { asyncHandler } from '../../common/utils/asyncHandler';
 import { requireRole } from '../../common/middleware/auth';
 import { env } from '../../config/env';
-import { mailFrom, mailMode, sendMailOrThrow } from '../../common/mailer';
+import { loadMailConfig, mailFrom, mailHost, mailMode, sendMailOrThrow } from '../../common/mailer';
+import { mailConfigSchema, mailConfigService } from './mail-config';
 import { AppError } from '../../common/errors/AppError';
 import {
   bracketsSchema,
@@ -17,6 +18,15 @@ import { companySchema, getCompany, getSettings, updateCompany, updateSettings }
 
 /** Cấu hình hệ thống. Đọc phần chung: mọi tài khoản; xem/sửa đầy đủ: ADMIN. */
 const router = Router();
+
+/** GET /api/settings/mail/oauth/callback — Google chuyển về sau khi cho phép; lưu refresh token rồi quay lại trang Cấu hình. */
+export const mailOAuthCallback = Router().get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const q = z.object({ state: z.string().optional(), code: z.string().optional(), error: z.string().optional() }).parse(req.query);
+    res.redirect(await mailConfigService.finishGmailAuth(q));
+  }),
+);
 
 /** GET /api/settings/public — thông số giao diện cần (giờ làm, vùng mặc định...). */
 router.get(
@@ -34,7 +44,7 @@ router.use(requireRole('ADMIN'));
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const [settings, company, current] = await Promise.all([getSettings(), getCompany(), loadLegalParams(new Date())]);
+    const [settings, company, current, mc] = await Promise.all([getSettings(), getCompany(), loadLegalParams(new Date()), loadMailConfig()]);
     res.json({
       data: {
         settings,
@@ -52,7 +62,7 @@ router.get(
             cap: `${r.capMultiplier} × ${r.capBase === 'BASE_SALARY' ? 'lương cơ sở' : 'lương tối thiểu vùng'}`,
           })),
         },
-        mail: { configured: mailMode() !== 'log', mode: mailMode(), host: mailMode().startsWith('gmail') ? (env.GMAIL_SEND_VIA === 'api' ? 'Gmail API (HTTPS)' : 'smtp.gmail.com:465 (OAuth2)') : env.SMTP_HOST ?? null, from: mailFrom(), appUrl: env.APP_URL },
+        mail: { configured: mailMode(mc) !== 'log', mode: mailMode(mc), host: mailHost(mc), from: mailFrom(mc), appUrl: env.APP_URL, source: mc.source },
         /** IP của người đang xem (sau proxy) — để điền nhanh IP văn phòng. */
         clientIp: req.ip ?? null,
       },
@@ -113,6 +123,35 @@ router.post(
   asyncHandler(async (req, res) => {
     await legalService.addBrackets(bracketsSchema.parse(req.body));
     res.status(201).json({ data: { saved: true } });
+  }),
+);
+
+// ---------- Cấu hình gửi email (Gmail OAuth2 / SMTP) ----------
+router.get(
+  '/mail',
+  asyncHandler(async (req, res) => {
+    res.json({ data: await mailConfigService.view(req) });
+  }),
+);
+router.put(
+  '/mail',
+  asyncHandler(async (req, res) => {
+    await mailConfigService.update(mailConfigSchema.parse(req.body));
+    res.json({ data: await mailConfigService.view(req) });
+  }),
+);
+/** POST /api/settings/mail/oauth/start — trả đường dẫn đăng nhập Google để cấp quyền gửi email. */
+router.post(
+  '/mail/oauth/start',
+  asyncHandler(async (req, res) => {
+    res.json({ data: await mailConfigService.startGmailAuth(req, req.user!.id) });
+  }),
+);
+router.post(
+  '/mail/oauth/disconnect',
+  asyncHandler(async (req, res) => {
+    await mailConfigService.disconnectGmail();
+    res.json({ data: await mailConfigService.view(req) });
   }),
 );
 

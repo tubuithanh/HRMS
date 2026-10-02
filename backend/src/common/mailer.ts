@@ -2,38 +2,117 @@ import nodemailer, { Transporter } from 'nodemailer';
 import { env } from '../config/env';
 
 /**
- * GỬI EMAIL — chọn cách gửi theo biến môi trường:
- * 1. Gmail OAuth2 (GMAIL_CLIENT_ID + GMAIL_CLIENT_SECRET + GMAIL_REFRESH_TOKEN + GMAIL_USER):
- *    - GMAIL_SEND_VIA=smtp (mặc định): smtp.gmail.com:465, xác thực XOAUTH2 — không cần mật khẩu Gmail.
- *    - GMAIL_SEND_VIA=api: Gmail API qua HTTPS (cổng 443) — dùng khi nhà cung cấp hosting chặn cổng SMTP.
- * 2. SMTP thường (SMTP_HOST, SMTP_USER, SMTP_PASS).
- * 3. Chưa cấu hình: in nội dung ra log (tiện khi phát triển).
+ * GỬI EMAIL — cấu hình lấy từ Cấu hình hệ thống (web) nếu quản trị đã khai báo, không thì từ biến môi trường:
+ * 1. Gmail OAuth2 (địa chỉ Gmail + Client ID + Client secret + refresh token):
+ *    - gửi qua smtp (mặc định): smtp.gmail.com:465, xác thực XOAUTH2 — không cần mật khẩu Gmail.
+ *    - gửi qua api: Gmail API qua HTTPS (cổng 443) — dùng khi nhà cung cấp hosting chặn cổng SMTP.
+ * 2. SMTP thường (máy chủ, cổng, tài khoản, mật khẩu).
+ * 3. Chưa cấu hình / tắt: in nội dung ra log (tiện khi phát triển).
  * sendMail() không bao giờ ném lỗi làm hỏng thao tác chính; sendMailOrThrow() dùng cho nút "Gửi thử".
  */
 
 export type MailMode = 'gmail-smtp' | 'gmail-api' | 'smtp' | 'log';
 
-export function mailMode(): MailMode {
-  if (env.GMAIL_CLIENT_ID && env.GMAIL_CLIENT_SECRET && env.GMAIL_REFRESH_TOKEN && env.GMAIL_USER) {
-    return env.GMAIL_SEND_VIA === 'api' ? 'gmail-api' : 'gmail-smtp';
-  }
-  return env.SMTP_HOST ? 'smtp' : 'log';
+export interface MailConfig {
+  /** Nguồn cấu hình — để hiển thị. */
+  source: 'env' | 'web';
+  /** Tắt hẳn (cấu hình web chọn "Không gửi"). */
+  off?: boolean;
+  gmailUser?: string;
+  clientId?: string;
+  clientSecret?: string;
+  refreshToken?: string;
+  sendVia: 'smtp' | 'api';
+  smtpHost?: string;
+  smtpPort: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  from: string;
 }
 
-/** Người gửi: Gmail luôn gửi bằng địa chỉ đã xác thực — giữ tên hiển thị trong SMTP_FROM. */
-export function mailFrom(): string {
-  const mode = mailMode();
-  if (mode === 'gmail-smtp' || mode === 'gmail-api') {
-    const name = /^\s*"?([^"<]+?)"?\s*</.exec(env.SMTP_FROM)?.[1]?.trim() || 'ATECH HRM';
-    return `"${name}" <${env.GMAIL_USER}>`;
+function fromEnv(): MailConfig {
+  return {
+    source: 'env',
+    gmailUser: env.GMAIL_USER,
+    clientId: env.GMAIL_CLIENT_ID,
+    clientSecret: env.GMAIL_CLIENT_SECRET,
+    refreshToken: env.GMAIL_REFRESH_TOKEN,
+    sendVia: env.GMAIL_SEND_VIA,
+    smtpHost: env.SMTP_HOST,
+    smtpPort: env.SMTP_PORT,
+    smtpUser: env.SMTP_USER,
+    smtpPass: env.SMTP_PASS,
+    from: env.SMTP_FROM,
+  };
+}
+
+// ---------- Nguồn cấu hình ----------
+/** Trả cấu hình đã lưu trên web (null = dùng biến môi trường). Đăng ký bởi modules/settings/mail-config. */
+type Provider = () => Promise<MailConfig | null>;
+let provider: Provider | null = null;
+let config: MailConfig | null = null;
+let loadedAt = 0;
+const CACHE_MS = 15_000;
+
+export function setMailConfigProvider(p: Provider) {
+  provider = p;
+  resetMailCache();
+}
+
+/** Xoá cache (sau khi lưu cấu hình mới). */
+export function resetMailCache() {
+  loadedAt = 0;
+  config = null;
+  transport = undefined;
+  accessToken = null;
+}
+
+/** Cấu hình hiện hành (tải lại sau 15 giây). */
+export async function loadMailConfig(): Promise<MailConfig> {
+  if (config && Date.now() - loadedAt < CACHE_MS) return config;
+  const next = (provider ? await provider().catch(() => null) : null) ?? fromEnv();
+  if (config && JSON.stringify(config) !== JSON.stringify(next)) {
+    transport = undefined;
+    accessToken = null;
   }
-  return env.SMTP_FROM;
+  config = next;
+  loadedAt = Date.now();
+  return config;
+}
+
+const cfg = () => config ?? fromEnv();
+
+export function mailMode(c: MailConfig = cfg()): MailMode {
+  if (c.off) return 'log';
+  if (c.clientId && c.clientSecret && c.refreshToken && c.gmailUser) {
+    return c.sendVia === 'api' ? 'gmail-api' : 'gmail-smtp';
+  }
+  return c.smtpHost ? 'smtp' : 'log';
+}
+
+/** Người gửi: Gmail luôn gửi bằng địa chỉ đã xác thực — giữ tên hiển thị trong "from". */
+export function mailFrom(c: MailConfig = cfg()): string {
+  const mode = mailMode(c);
+  if (mode === 'gmail-smtp' || mode === 'gmail-api') {
+    const name = /^\s*"?([^"<]+?)"?\s*</.exec(c.from)?.[1]?.trim() || (c.from.includes('@') ? '' : c.from.trim()) || 'ATECH HRM';
+    return `"${name}" <${c.gmailUser}>`;
+  }
+  return c.from;
+}
+
+/** Mô tả ngắn để hiển thị trong Cấu hình hệ thống. */
+export function mailHost(c: MailConfig = cfg()): string | null {
+  const mode = mailMode(c);
+  if (mode === 'gmail-api') return 'Gmail API (HTTPS)';
+  if (mode === 'gmail-smtp') return 'smtp.gmail.com:465 (OAuth2)';
+  return mode === 'smtp' ? `${c.smtpHost}:${c.smtpPort}` : null;
 }
 
 let transport: Transporter | null | undefined;
 function smtpTransport(): Transporter | null {
   if (transport !== undefined) return transport;
-  const mode = mailMode();
+  const c = cfg();
+  const mode = mailMode(c);
   transport =
     mode === 'gmail-smtp'
       ? nodemailer.createTransport({
@@ -42,18 +121,18 @@ function smtpTransport(): Transporter | null {
           secure: true,
           auth: {
             type: 'OAuth2',
-            user: env.GMAIL_USER,
-            clientId: env.GMAIL_CLIENT_ID,
-            clientSecret: env.GMAIL_CLIENT_SECRET,
-            refreshToken: env.GMAIL_REFRESH_TOKEN,
+            user: c.gmailUser,
+            clientId: c.clientId,
+            clientSecret: c.clientSecret,
+            refreshToken: c.refreshToken,
           },
         })
       : mode === 'smtp'
         ? nodemailer.createTransport({
-            host: env.SMTP_HOST,
-            port: env.SMTP_PORT,
-            secure: env.SMTP_PORT === 465,
-            auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
+            host: c.smtpHost,
+            port: c.smtpPort,
+            secure: c.smtpPort === 465,
+            auth: c.smtpUser ? { user: c.smtpUser, pass: c.smtpPass } : undefined,
           })
         : null;
   return transport;
@@ -65,13 +144,14 @@ let accessToken: { value: string; expiresAt: number } | null = null;
 /** Đổi refresh token lấy access token (lưu tạm đến 1 phút trước khi hết hạn). */
 export async function gmailAccessToken(): Promise<string> {
   if (accessToken && Date.now() < accessToken.expiresAt) return accessToken.value;
+  const c = cfg();
   const r = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: env.GMAIL_CLIENT_ID!,
-      client_secret: env.GMAIL_CLIENT_SECRET!,
-      refresh_token: env.GMAIL_REFRESH_TOKEN!,
+      client_id: c.clientId!,
+      client_secret: c.clientSecret!,
+      refresh_token: c.refreshToken!,
       grant_type: 'refresh_token',
     }),
   });
@@ -79,7 +159,7 @@ export async function gmailAccessToken(): Promise<string> {
   if (!r.ok || !body.access_token) {
     throw new Error(
       body.error === 'invalid_grant'
-        ? 'Refresh token Gmail không còn hiệu lực (bị thu hồi hoặc hết hạn) — chạy lại "npm run gmail:token" để lấy mới'
+        ? 'Refresh token Gmail không còn hiệu lực (bị thu hồi hoặc hết hạn) — bấm "Kết nối Gmail" trong Cấu hình hệ thống (hoặc chạy lại "npm run gmail:token") để lấy mới'
         : `Không lấy được access token Gmail: ${body.error_description ?? body.error ?? r.status}`,
     );
   }
@@ -109,6 +189,7 @@ async function sendViaGmailApi(m: { from: string; to: string; subject: string; t
 
 /** Gửi và ném lỗi nếu thất bại (cho nút "Gửi thử"). */
 export async function sendMailOrThrow(to: string, subject: string, text: string): Promise<{ mode: MailMode }> {
+  await loadMailConfig();
   const mode = mailMode();
   const m = { from: mailFrom(), to, subject, text };
   if (mode === 'log') {

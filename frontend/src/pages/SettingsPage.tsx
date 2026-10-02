@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api/client';
 import { Card, ErrorBox, FieldDef, FormFields, Loading, PageHeader, toBody, useToast } from '../components/ui';
 import { useFetch } from '../lib/hooks';
+import MailSettingsCard from './MailSettingsCard';
 import { dateTime, money } from '../lib/format';
 
 interface SettingsData {
@@ -94,24 +95,12 @@ const pct = (r: string) => `${(Number(r) * 100).toLocaleString('vi-VN')}%`;
 
 export default function SettingsPage() {
   const { data, error, loading, reload } = useFetch<SettingsData>('/settings');
-  const [testTo, setTestTo] = useState('');
-  const [testMsg, setTestMsg] = useState<string | null>(null);
 
   if (loading && !data) return <Loading />;
   if (!data) return <ErrorBox error={error} />;
   const s = data.settings;
   const saveGroup = (group: string) => (body: Record<string, unknown>) => api.put('/settings', { [group]: body });
 
-  async function testEmail(e: FormEvent) {
-    e.preventDefault();
-    setTestMsg(null);
-    try {
-      const res = await api.post('/settings/test-email', { to: testTo });
-      setTestMsg(res.data.data.configured ? `✅ Đã gửi email thử tới ${testTo}. Hãy kiểm tra hộp thư (cả mục Spam).` : 'Chưa cấu hình gửi email: nội dung đã được in ra log của server.');
-    } catch (err) {
-      setTestMsg(errorMessage(err));
-    }
-  }
 
   return (
     <>
@@ -323,34 +312,7 @@ export default function SettingsPage() {
             onSaved={reload}
           />
           <DailyJobsCard runAfterHour={s.reminders.runAfterHour} />
-          <Card title={<h2 className="h6 mb-0"><i className="bi bi-envelope me-2 text-primary" />Gửi email</h2>}>
-            <dl className="kv small mb-3">
-              <dt>Trạng thái</dt>
-              <dd>
-                {data.mail.mode === 'log' ? (
-                  <span className="text-warning-emphasis">Chưa cấu hình — email được in ra log server</span>
-                ) : (
-                  <span className="text-success">
-                    {data.mail.mode === 'smtp' ? 'SMTP' : 'Gmail OAuth2'} · {data.mail.host}
-                  </span>
-                )}
-              </dd>
-              <dt>Người gửi</dt>
-              <dd>{data.mail.from}</dd>
-              <dt>Địa chỉ web</dt>
-              <dd>{data.mail.appUrl}</dd>
-            </dl>
-            <form className="d-flex gap-2" onSubmit={testEmail}>
-              <input type="email" className="form-control" placeholder="email nhận thử" value={testTo} onChange={(e) => setTestTo(e.target.value)} required />
-              <button className="btn btn-outline-primary text-nowrap">Gửi thử</button>
-            </form>
-            {testMsg && <div className="small mt-2">{testMsg}</div>}
-            <p className="small text-body-secondary mb-0 mt-2">
-              Cấu hình trong biến môi trường của backend (không lưu trong database). <strong>Gmail OAuth2</strong> (khuyên dùng, không cần mật khẩu Gmail):{' '}
-              <code>GMAIL_USER</code>, <code>GMAIL_CLIENT_ID</code>, <code>GMAIL_CLIENT_SECRET</code>, <code>GMAIL_REFRESH_TOKEN</code> — lấy refresh token bằng{' '}
-              <code>npm run gmail:token</code>; nếu hosting chặn cổng SMTP đặt <code>GMAIL_SEND_VIA=api</code>. Hoặc SMTP thường: <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>.
-            </p>
-          </Card>
+          <MailSettingsCard />
 
           <Card title={<h2 className="h6 mb-0"><i className="bi bi-bank me-2 text-primary" />Tham số pháp lý đang áp dụng</h2>}>
             <table className="table table-sm small mb-2">

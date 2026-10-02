@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env';
 import routes from './routes';
+import { registerMailConfig } from './modules/settings/mail-config';
 import { errorHandler } from './common/middleware/errorHandler';
 import { notFound } from './common/middleware/notFound';
 import { auditContext } from './common/audit/audit';
@@ -12,6 +13,8 @@ import { auditContext } from './common/audit/audit';
  * `app` trong test mà không cần mở cổng mạng.
  */
 export function createApp() {
+  // Bộ gửi email đọc cấu hình đã lưu trên web (Cấu hình hệ thống → Gửi email).
+  registerMailConfig();
   const app = express();
 
   // Sau proxy (Render) → lấy IP thật từ X-Forwarded-For (giới hạn đăng nhập theo IP, chấm công theo IP văn phòng).

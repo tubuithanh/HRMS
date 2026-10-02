@@ -12,7 +12,7 @@ import attendanceRoutes from './modules/attendance/attendance.routes';
 import recruitmentRoutes from './modules/recruitment/recruitment.routes';
 import importRoutes from './modules/import/import.routes';
 import auditRoutes from './modules/audit/audit.routes';
-import settingsRoutes from './modules/settings/settings.routes';
+import settingsRoutes, { mailOAuthCallback } from './modules/settings/settings.routes';
 import shiftRoutes from './modules/shift/shift.routes';
 import reportRoutes from './modules/reports/reports.routes';
 import peopleRoutes from './modules/people/people.routes';
@@ -66,6 +66,8 @@ router.use('/recruitment', requireAuth, access(['HR']), recruitmentRoutes);
 router.use('/import', requireAuth, importRoutes);
 router.use('/audit', requireAuth, requireRole('ADMIN'), auditRoutes);
 // Cấu hình: /public cho mọi tài khoản, phần còn lại chỉ ADMIN (kiểm tra bên trong)
+// Google chuyển trình duyệt về đây sau khi cho phép (không kèm token đăng nhập) — xác thực bằng state.
+router.use('/settings/mail/oauth/callback', mailOAuthCallback);
 router.use('/settings', requireAuth, settingsRoutes);
 
 export default router;
