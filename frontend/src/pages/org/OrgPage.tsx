@@ -5,6 +5,7 @@ import { ActionButton, Badge, Card, DataTable, ErrorBox, FieldDef, FormModal, Lo
 import { useFetch } from '../../lib/hooks';
 import { date, labels, options, todayISO } from '../../lib/format';
 import { Company, Job, OrgUnit, Position } from '../../types/models';
+import OrgChart from './OrgChart';
 
 type Dialog =
   | { kind: 'org'; parentId?: string }
@@ -57,7 +58,7 @@ function OrgTree(props: {
 }
 
 export default function OrgPage() {
-  const [tab, setTab] = useState<'tree' | 'positions' | 'jobs'>('tree');
+  const [tab, setTab] = useState<'chart' | 'tree' | 'positions' | 'jobs'>('chart');
   const [dialog, setDialog] = useState<Dialog>(null);
   const canWrite = useCanWrite('corehr');
   const org = useFetch<OrgUnit[]>('/corehr/org');
@@ -121,13 +122,15 @@ export default function OrgPage() {
       />
       <Tabs
         tabs={[
-          { key: 'tree', label: 'Sơ đồ tổ chức' },
+          { key: 'chart', label: 'Sơ đồ' },
+          { key: 'tree', label: 'Quản lý đơn vị' },
           { key: 'positions', label: `Vị trí (${positions.data?.length ?? '…'})` },
           { key: 'jobs', label: `Chức danh (${jobs.data?.length ?? '…'})` },
         ]}
         active={tab}
         onChange={setTab}
       />
+      {tab === 'chart' && <OrgChart />}
       {tab === 'tree' && (
         <Card>
           <ErrorBox error={org.error} />

@@ -76,7 +76,9 @@ hồ sơ nhân sự thì mới dùng được phần này.
 ## Các phân hệ
 
 - **Nhân sự:** hồ sơ, quá trình làm việc, hợp đồng lao động và phụ lục (kiểm tra theo BLLĐ 2019, cảnh báo sắp hết hạn), vị trí, lương cơ bản, hồ sơ thuế, người phụ thuộc, giấy tờ.
-- **Tổ chức:** cây phòng ban, chức danh, vị trí định biên.
+- **Tổ chức:** cây phòng ban, chức danh, vị trí định biên. Tab *Sơ đồ*: sơ đồ tổ chức dạng cây (trên → dưới) — mỗi đơn vị hiện
+  người phụ trách (giữ vị trí chủ chốt), số nhân viên trực tiếp / cả nhánh, số vị trí trống; bấm ô xem danh sách nhân viên; thu gọn /
+  mở rộng nhánh, tìm đơn vị hoặc nhân viên (tự mở nhánh, tô sáng), phóng to / thu nhỏ, in. Theo phạm vi dữ liệu của người xem.
 - **Chấm công:** nhân viên tự chấm vào/ra, nhân sự nhập/sửa, bảng công tháng. Máy chủ luôn dùng giờ Việt Nam (`TZ=Asia/Ho_Chi_Minh`).
   - *Giờ công theo ca*: mỗi ngày tính phút đi muộn, về sớm, giờ làm thực tế (trừ nghỉ giữa ca) và giờ làm đêm 22:00 – 06:00
     (Điều 106) — theo ca của người đó, không có ca thì theo giờ hành chính trong Cấu hình.

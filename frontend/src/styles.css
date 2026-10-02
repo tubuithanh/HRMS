@@ -153,3 +153,62 @@ dl.kv dd { margin: 0; }
 /* Nút chấm công lớn */
 .punch-btn { width: 9.5rem; height: 9.5rem; border-radius: 50%; font-size: 1.05rem; font-weight: 600; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.35rem; box-shadow: var(--bs-box-shadow); }
 .punch-btn .bi { font-size: 2.2rem; }
+
+/* ===== Sơ đồ tổ chức (cây trên → dưới, đường nối bằng CSS) ===== */
+.org-canvas { overflow: auto; max-height: 75vh; padding: 1rem 0.5rem 1.5rem; background:
+  radial-gradient(circle, var(--bs-border-color-translucent) 1px, transparent 1px) 0 0 / 18px 18px; }
+.org-chart { display: inline-block; min-width: 100%; text-align: center; }
+.org-chart ul { display: flex; justify-content: center; padding: 22px 0 0; margin: 0; position: relative; list-style: none; }
+.org-chart > ul { padding-top: 0; }
+.org-chart li { position: relative; padding: 22px 6px 0; display: flex; flex-direction: column; align-items: center; }
+.org-chart > ul > li { padding-top: 0; }
+/* đường ngang nối các con + đường dọc lên cha */
+.org-chart li::before, .org-chart li::after {
+  content: ''; position: absolute; top: 0; height: 22px; border-top: 2px solid var(--org-line); width: 50%;
+}
+.org-chart li::before { right: 50%; }
+.org-chart li::after { left: 50%; border-left: 2px solid var(--org-line); }
+.org-chart li:only-child::before, .org-chart li:only-child::after { display: none; }
+.org-chart li:only-child { padding-top: 22px; }
+.org-chart li:only-child > .org-card::before { content: ''; position: absolute; top: -22px; left: 50%; height: 22px; border-left: 2px solid var(--org-line); }
+.org-chart li:first-child::before, .org-chart li:last-child::after { border: 0 none; }
+.org-chart li:last-child::before { border-right: 2px solid var(--org-line); border-radius: 0 6px 0 0; }
+.org-chart li:first-child::after { border-radius: 6px 0 0 0; }
+.org-chart > ul > li::before, .org-chart > ul > li::after { display: none; }
+.org-chart > ul > li:only-child { padding-top: 0; }
+.org-chart > ul > li > .org-card::before { display: none; }
+/* đường dọc từ cha xuống thanh ngang */
+.org-chart ul ul::before { content: ''; position: absolute; top: 0; left: 50%; height: 22px; border-left: 2px solid var(--org-line); }
+:root { --org-line: #b8c4d6; }
+[data-bs-theme="dark"] { --org-line: #4b5563; }
+
+.org-card { position: relative; width: 196px; }
+.org-card-body {
+  display: block; width: 100%; text-align: left; background: var(--bs-body-bg); color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color); border-top: 3px solid var(--bs-primary); border-radius: 10px;
+  padding: 0.5rem 0.6rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); cursor: pointer; transition: box-shadow 0.15s, transform 0.15s;
+}
+.org-card-body:hover, .org-card-body:focus-visible { box-shadow: 0 4px 14px rgba(42, 120, 214, 0.25); transform: translateY(-1px); outline: none; }
+.org-card.hit .org-card-body { border-color: #eb6834; box-shadow: 0 0 0 3px rgba(235, 104, 52, 0.35); }
+.org-type { font-size: 0.62rem; }
+.org-code { font-size: 0.68rem; color: var(--bs-secondary-color); margin-left: auto; }
+.org-name { font-weight: 600; font-size: 0.86rem; line-height: 1.2; margin-bottom: 0.35rem; }
+.org-head { display: flex; align-items: center; gap: 0.4rem; font-size: 0.76rem; min-height: 30px; }
+.org-muted { color: var(--bs-secondary-color); }
+.org-stats { display: flex; gap: 0.75rem; font-size: 0.74rem; margin-top: 0.35rem; padding-top: 0.3rem; border-top: 1px dashed var(--bs-border-color); }
+.org-avatar { flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: 600; }
+.org-avatar.m { background: #2a78d6; }
+.org-avatar.f { background: #eb6834; }
+.org-toggle {
+  position: absolute; left: 50%; bottom: -11px; transform: translateX(-50%); z-index: 1;
+  min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; font-size: 0.7rem; line-height: 1;
+  border: 1px solid var(--bs-border-color); background: var(--bs-body-bg); color: var(--bs-body-color);
+}
+.org-toggle:hover { border-color: var(--bs-primary); color: var(--bs-primary); }
+
+@media print {
+  .navbar, .mobile-nav, .nav-tabs, .org-toolbar, .card-footer, h1, .page-header-actions { display: none !important; }
+  .org-canvas { max-height: none; overflow: visible; background: none; }
+  .org-toggle { display: none; }
+  main { padding: 0 !important; }
+}

@@ -428,7 +428,7 @@ async function main() {
         code: `${slot.org}-${slot.job}-${String(positionSeq).padStart(3, '0')}`,
         jobId: jobIds[slot.job],
         orgStructureId: orgIds[slot.org],
-        isKeyPosition: !!j.manager && j.manager >= 3_000_000,
+        isKeyPosition: !!j.manager && j.manager >= 2_500_000, // trưởng phòng, quản đốc xưởng trở lên
         status: slot.leaver ? 'VACANT' : 'FILLED',
         effectiveDate: FOUNDED,
       },
