@@ -14,6 +14,10 @@ import { auditContext } from './common/audit/audit';
 export function createApp() {
   const app = express();
 
+  // Sau proxy (Render) → lấy IP thật từ X-Forwarded-For (giới hạn đăng nhập theo IP, chấm công theo IP văn phòng).
+  const hops = env.TRUST_PROXY_HOPS ?? (env.NODE_ENV === 'production' ? 1 : 0);
+  if (hops > 0) app.set('trust proxy', hops);
+
   // Bảo mật header HTTP cơ bản
   app.use(helmet());
 

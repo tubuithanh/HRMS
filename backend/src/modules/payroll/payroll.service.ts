@@ -1,3 +1,5 @@
+import Decimal from 'decimal.js';
+import { getSettings } from '../settings/settings.service';
 import { events } from '../notification/events';
 import { Prisma } from '@prisma/client';
 import { prisma, TxClient } from '../../config/prisma';
@@ -178,7 +180,7 @@ export const payrollService = {
         },
         attendanceRecords: {
           where: { workDate: { gte: start, lte: asOf } },
-          select: { workDate: true, status: true },
+          select: { workDate: true, status: true, nightMinutes: true, lateMinutes: true, earlyMinutes: true },
         },
         leaveRequests: {
           where: { status: 'APPROVED', fromDate: { lte: asOf }, toDate: { gte: start } },
@@ -197,6 +199,7 @@ export const payrollService = {
     });
 
     const holidays = await holidaySet(start, asOf);
+    const attSettings = (await getSettings()).attendance;
     // Tham số pháp lý (giảm trừ, lương cơ sở, biểu thuế, tỷ lệ BH) hiệu lực vào ngày cuối kỳ.
     const legal = await loadLegalParams(asOf);
 
@@ -298,6 +301,11 @@ export const payrollService = {
         });
         const carriedDeduction = prevResult ? String(prevResult.deferredDeduction) : '0';
 
+        // Giờ công theo ca trong thời gian còn làm việc: giờ đêm (phụ cấp), phút đi muộn / về sớm.
+        const inEmployment = emp.attendanceRecords.filter((r) => r.workDate >= employedStart && r.workDate <= employedEnd);
+        const nightHours = new Decimal(inEmployment.reduce((n, r) => n + r.nightMinutes, 0)).div(60).toDecimalPlaces(2);
+        const lateEarlyMinutes = inEmployment.reduce((n, r) => n + r.lateMinutes + r.earlyMinutes, 0);
+
         // salary.baseAmount là Decimal của Prisma; String() giữ nguyên giá trị.
         const base = String(salary.baseAmount);
         const insSalary = salary.insuranceSalary
@@ -314,6 +322,9 @@ export const payrollService = {
           standardDays,
           paidDays,
           overtime: emp.overtimeRequests.map((o) => ({ hours: String(o.hours), multiplier: String(o.multiplier) })),
+          nightHours: nightHours.toString(),
+          nightAllowancePercent: attSettings.nightAllowancePercent,
+          lateEarlyMinutes: attSettings.deductLateEarly ? lateEarlyMinutes : 0,
         });
         const agg = aggregateElements(built.lines);
 
@@ -362,6 +373,8 @@ export const payrollService = {
             unpaidLeave: sheet.unpaidLeave,
             absent: sheet.absent,
             overtimeHours: sheet.overtimeHours,
+            nightHours: nightHours.toString(),
+            lateEarlyMinutes,
             insuranceExempt: built.insuranceExempt,
             legal: legalSummary(legal),
             lines: built.lines.map((l) => ({

@@ -53,6 +53,12 @@ async function myEmploymentId(req: Request): Promise<string> {
   return emp.id;
 }
 
+/** Vị trí gửi kèm khi tự chấm công: toạ độ GPS từ trình duyệt + IP (sau proxy). */
+function locationOf(req: Request) {
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  return { lat: num(req.body?.lat), lng: num(req.body?.lng), ip: req.ip ?? null };
+}
+
 // ---------- Hồ sơ ----------
 router.get(
   '/profile',
@@ -191,7 +197,7 @@ router.post(
   '/attendance/check-in',
   asyncHandler(async (req, res) => {
     const employmentId = await myEmploymentId(req);
-    res.json({ data: await attendanceService.checkIn(employmentId) });
+    res.json({ data: await attendanceService.checkIn(employmentId, new Date(), locationOf(req)) });
   }),
 );
 
@@ -199,7 +205,7 @@ router.post(
   '/attendance/check-out',
   asyncHandler(async (req, res) => {
     const employmentId = await myEmploymentId(req);
-    res.json({ data: await attendanceService.checkOut(employmentId) });
+    res.json({ data: await attendanceService.checkOut(employmentId, new Date(), locationOf(req)) });
   }),
 );
 

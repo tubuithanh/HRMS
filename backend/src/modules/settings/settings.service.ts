@@ -16,6 +16,10 @@ export const settingsSchema = z.object({
       workStart: hhmm,
       workEnd: hhmm,
       lateGraceMinutes: z.number().int().min(0).max(120),
+      /** Phụ cấp làm việc ban đêm, % lương giờ — tối thiểu 30% (Điều 98 BLLĐ 2019). */
+      nightAllowancePercent: z.number().int().min(30, 'Tối thiểu 30% (Điều 98 BLLĐ)').max(200),
+      /** Trừ lương theo số phút đi muộn / về sớm (chỉ trả lương cho thời gian thực làm). */
+      deductLateEarly: z.boolean(),
     })
     .refine((v) => v.workEnd > v.workStart, { message: 'Giờ tan ca phải sau giờ vào làm', path: ['workEnd'] }),
   payroll: z.object({
@@ -25,6 +29,18 @@ export const settingsSchema = z.object({
   approval: z.object({
     twoStep: z.boolean(),
   }),
+  /** Giới hạn vị trí khi nhân viên tự chấm công. */
+  checkin: z
+    .object({
+      mode: z.enum(['OFF', 'GPS', 'IP', 'GPS_OR_IP']),
+      lat: z.number().min(-90).max(90).nullable(),
+      lng: z.number().min(-180).max(180).nullable(),
+      radiusMeters: z.number().int().min(30).max(5000),
+      /** IP hoặc dải CIDR, cách nhau bởi dấu phẩy / xuống dòng. */
+      allowedIps: z.string().max(2000),
+    })
+    .refine((v) => !v.mode.includes('GPS') || (v.lat !== null && v.lng !== null), { message: 'Cần toạ độ văn phòng', path: ['lat'] })
+    .refine((v) => !v.mode.includes('IP') || v.allowedIps.trim().length > 0, { message: 'Cần ít nhất một IP', path: ['allowedIps'] }),
   security: z.object({
     maxFailedLogins: z.number().int().min(3).max(20),
     lockMinutes: z.number().int().min(1).max(1440),
@@ -37,9 +53,10 @@ export type Settings = z.infer<typeof settingsSchema>;
 type Group = keyof Settings;
 
 export const DEFAULT_SETTINGS: Settings = {
-  attendance: { workStart: '08:30', workEnd: '17:30', lateGraceMinutes: 0 },
+  attendance: { workStart: '08:30', workEnd: '17:30', lateGraceMinutes: 0, nightAllowancePercent: 30, deductLateEarly: false },
   payroll: { defaultRegion: 1, payDay: 5 },
   approval: { twoStep: true },
+  checkin: { mode: 'OFF', lat: null, lng: null, radiusMeters: 200, allowedIps: '' },
   security: { maxFailedLogins: 5, lockMinutes: 15, sessionHours: 8, resetTokenMinutes: 30 },
 };
 

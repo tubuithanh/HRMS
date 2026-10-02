@@ -43,6 +43,7 @@ const menu: Array<NavItem | NavGroup> = [
       { to: '/leave', label: 'Duyệt nghỉ phép', icon: 'bi-check2-square', roles: STAFF },
       { to: '/overtime', label: 'Duyệt làm thêm giờ', icon: 'bi-moon-stars', roles: STAFF },
       { to: '/shifts', label: 'Ca làm việc', icon: 'bi-clock-history', roles: STAFF },
+      { to: '/attendance/machine', label: 'Nhập máy chấm công', icon: 'bi-fingerprint', roles: ['ADMIN', 'HR'] },
       { to: '/holidays', label: 'Ngày lễ', icon: 'bi-calendar-heart', roles: STAFF },
     ],
   },

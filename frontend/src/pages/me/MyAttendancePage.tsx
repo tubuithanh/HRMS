@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getPosition } from '../../lib/geo';
 import { api } from '../../api/client';
 import { ActionButton, Card, DataTable, PageHeader } from '../../components/ui';
 import { useFetch } from '../../lib/hooks';
@@ -6,6 +7,8 @@ import { currentMonth, date, labels, time } from '../../lib/format';
 import { AttendanceRecord, TimesheetRow } from '../../types/models';
 import { Legend, daysOfMonth, isWeekendISO, statusLetter } from '../attendance/TimesheetPage';
 import { SelfServiceError } from './MyProfilePage';
+
+const hm = (m: number) => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
 
 function Clock() {
   const [now, setNow] = useState(new Date());
@@ -27,6 +30,12 @@ export default function MyAttendancePage() {
   const reload = () => {
     today.reload();
     sheet.reload();
+  };
+  const pub = useFetch<{ checkin: { mode: string } }>('/settings/public');
+  const needGps = pub.data?.checkin.mode.includes('GPS') ?? false;
+  const punch = async (kind: 'check-in' | 'check-out') => {
+    const pos = needGps ? await getPosition() : null;
+    return api.post(`/me/attendance/${kind}`, pos ?? {});
   };
   const t = today.data;
   const s = sheet.data?.summary;
@@ -51,10 +60,20 @@ export default function MyAttendancePage() {
             {t && <> · {labels.attendance[t.status]}</>}
           </p>
           <div className="toolbar">
-            <ActionButton label="Chấm công vào" className="btn btn-primary" disabled={!!t?.checkIn} run={() => api.post('/me/attendance/check-in')} success="Đã chấm công vào" onDone={reload} />
-            <ActionButton label="Chấm công ra" className="btn btn-outline-secondary" disabled={!t?.checkIn || !!t?.checkOut} run={() => api.post('/me/attendance/check-out')} success="Đã chấm công ra" onDone={reload} />
+            <ActionButton label="Chấm công vào" className="btn btn-primary" disabled={!!t?.checkIn} run={() => punch('check-in')} success="Đã chấm công vào" onDone={reload} />
+            <ActionButton label="Chấm công ra" className="btn btn-outline-secondary" disabled={!t?.checkIn || !!t?.checkOut} run={() => punch('check-out')} success="Đã chấm công ra" onDone={reload} />
           </div>
-          <p className="muted" style={{ marginBottom: 0, fontSize: 12 }}>Vào sau 8:30 được tính là đi muộn.</p>
+          {t && ((t.lateMinutes ?? 0) > 0 || (t.earlyMinutes ?? 0) > 0 || t.workedMinutes != null) && (
+            <p className="small mb-2">
+              {(t.lateMinutes ?? 0) > 0 && <span className="badge text-bg-warning me-1">Muộn {t.lateMinutes} phút</span>}
+              {(t.earlyMinutes ?? 0) > 0 && <span className="badge text-bg-warning me-1">Về sớm {t.earlyMinutes} phút</span>}
+              {t.workedMinutes != null && <span className="badge text-bg-light border">Làm {hm(t.workedMinutes)}</span>}
+            </p>
+          )}
+          <p className="muted" style={{ marginBottom: 0, fontSize: 12 }}>
+            Đi muộn / về sớm tính theo ca của bạn (không có ca thì theo giờ hành chính).
+            {needGps && ' Cần cho phép trình duyệt truy cập vị trí khi chấm công.'}
+          </p>
         </Card>
         {s && (
           <Card title={`Tổng hợp tháng ${month.slice(5)}/${month.slice(0, 4)}`}>
@@ -99,6 +118,9 @@ export default function MyAttendancePage() {
             { header: 'Vào', cell: (r) => time(r.checkIn) },
             { header: 'Ra', cell: (r) => time(r.checkOut) },
             { header: 'Trạng thái', cell: (r) => labels.attendance[r.status] },
+            { header: 'Muộn / sớm', cell: (r) => [r.lateMinutes ? `muộn ${r.lateMinutes}′` : '', r.earlyMinutes ? `sớm ${r.earlyMinutes}′` : ''].filter(Boolean).join(' · ') },
+            { header: 'Giờ làm', cell: (r) => (r.workedMinutes != null ? hm(r.workedMinutes) : '') },
+            { header: 'Giờ đêm', cell: (r) => (r.nightMinutes ? hm(r.nightMinutes) : '') },
             { header: 'Ghi chú', cell: (r) => r.note ?? '' },
           ]}
         />

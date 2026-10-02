@@ -1,12 +1,11 @@
 import { prisma } from '../../config/prisma';
 import { ConflictError, NotFoundError } from '../../common/errors/AppError';
 import { addDays, monthRange, todayDate } from '../../common/utils/dates';
-import { isLate, summarizeMonth } from './attendance.logic';
-import { getSettings, parseHHmm } from '../settings/settings.service';
+import { summarizeMonth } from './attendance.logic';
 import { UpsertRecordInput } from './attendance.schema';
 import { holidaySet } from '../overtime/overtime.service';
-import { shiftService } from '../shift/shift.service';
-import { isLateForShift, isOvernight } from '../shift/shift.logic';
+import { isOvernight } from '../shift/shift.logic';
+import { CheckinLocation, timesFor, verifyLocation } from './attendance.times';
 
 const personSelect = {
   select: { id: true, personCode: true, fullName: true },
@@ -14,30 +13,34 @@ const personSelect = {
 
 export const attendanceService = {
   // ---------- Nhân viên tự chấm công ----------
-  async checkIn(employmentId: string, now = new Date()) {
+  async checkIn(employmentId: string, now = new Date(), loc: CheckinLocation = {}) {
+    await verifyLocation(loc);
     const workDate = todayDate(now);
     const existing = await prisma.attendanceRecord.findUnique({
       where: { employmentId_workDate: { employmentId, workDate } },
     });
     if (existing?.checkIn) throw new ConflictError('Hôm nay bạn đã chấm công vào');
     // Có ca (xếp ca hoặc ca mặc định) thì so với giờ bắt đầu ca, không thì giờ hành chính.
-    const shift = await shiftService.resolve(employmentId, workDate);
-    let late: boolean;
-    if (shift) late = isLateForShift(now, workDate, shift);
-    else {
-      const { attendance } = await getSettings();
-      late = isLate(now, parseHHmm(attendance.workStart), attendance.lateGraceMinutes);
-    }
-    const status = late ? 'LATE' : 'PRESENT';
-    const shiftId = shift?.id ?? null;
+    const t = await timesFor(employmentId, workDate, now, null);
+    const data = {
+      checkIn: now,
+      status: t.lateMinutes > 0 ? ('LATE' as const) : ('PRESENT' as const),
+      shiftId: t.shiftId,
+      lateMinutes: t.lateMinutes,
+      source: 'SELF',
+      checkInLat: loc.lat != null ? loc.lat.toFixed(6) : null,
+      checkInLng: loc.lng != null ? loc.lng.toFixed(6) : null,
+      checkInIp: loc.ip ?? null,
+    };
     return prisma.attendanceRecord.upsert({
       where: { employmentId_workDate: { employmentId, workDate } },
-      update: { checkIn: now, status, shiftId, source: 'SELF' },
-      create: { employmentId, workDate, checkIn: now, status, shiftId, source: 'SELF' },
+      update: data,
+      create: { employmentId, workDate, ...data },
     });
   },
 
-  async checkOut(employmentId: string, now = new Date()) {
+  async checkOut(employmentId: string, now = new Date(), loc: CheckinLocation = {}) {
+    await verifyLocation(loc);
     const workDate = todayDate(now);
     let existing = await prisma.attendanceRecord.findUnique({
       where: { employmentId_workDate: { employmentId, workDate } },
@@ -52,9 +55,10 @@ export const attendanceService = {
     }
     if (!existing?.checkIn) throw new ConflictError('Bạn chưa chấm công vào hôm nay');
     if (existing.checkOut) throw new ConflictError('Hôm nay bạn đã chấm công ra');
+    const t = await timesFor(employmentId, existing.workDate, existing.checkIn, now);
     return prisma.attendanceRecord.update({
       where: { id: existing.id },
-      data: { checkOut: now },
+      data: { checkOut: now, lateMinutes: t.lateMinutes, earlyMinutes: t.earlyMinutes, workedMinutes: t.workedMinutes, nightMinutes: t.nightMinutes },
     });
   },
 
@@ -79,12 +83,21 @@ export const attendanceService = {
       where: { id: input.employmentId, isDelete: false },
     });
     if (!emp) throw new NotFoundError('Không tìm thấy hợp đồng lao động');
+    const checkIn = input.checkIn ?? null;
+    const checkOut = input.checkOut ?? null;
+    const t = await timesFor(input.employmentId, input.workDate, checkIn, checkOut);
+    const worked = input.status === 'PRESENT' || input.status === 'LATE' || input.status === 'REMOTE';
     const data = {
       status: input.status,
-      checkIn: input.checkIn ?? null,
-      checkOut: input.checkOut ?? null,
+      checkIn,
+      checkOut,
       note: input.note ?? null,
       source: 'MANUAL',
+      shiftId: t.shiftId,
+      lateMinutes: worked ? t.lateMinutes : 0,
+      earlyMinutes: worked ? t.earlyMinutes : 0,
+      workedMinutes: worked ? t.workedMinutes : null,
+      nightMinutes: worked ? t.nightMinutes : 0,
     };
     return prisma.attendanceRecord.upsert({
       where: {
@@ -123,7 +136,7 @@ export const attendanceService = {
         person: personSelect,
         attendanceRecords: {
           where: { workDate: { gte: start, lte: end } },
-          select: { workDate: true, status: true },
+          select: { workDate: true, status: true, lateMinutes: true, earlyMinutes: true, nightMinutes: true },
         },
         overtimeRequests: {
           where: { status: 'APPROVED', workDate: { gte: start, lte: end } },
@@ -163,6 +176,10 @@ export const attendanceService = {
           holidays,
           e.overtimeRequests.map((o) => ({ workDate: o.workDate, hours: Number(o.hours) })),
         ),
+        // Tổng phút theo ca trong tháng.
+        lateMinutes: e.attendanceRecords.reduce((n, r) => n + r.lateMinutes, 0),
+        earlyMinutes: e.attendanceRecords.reduce((n, r) => n + r.earlyMinutes, 0),
+        nightHours: Math.round((e.attendanceRecords.reduce((n, r) => n + r.nightMinutes, 0) / 60) * 100) / 100,
       })),
     };
   },

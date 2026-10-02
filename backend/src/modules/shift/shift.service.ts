@@ -4,6 +4,7 @@ import { ConflictError, NotFoundError, ValidationError } from '../../common/erro
 import { addDays, formatDate, isWeekend, monthRange } from '../../common/utils/dates';
 import { pickEffective, previousDay } from '../../common/utils/effectiveDating';
 import { rotationShiftFor, ShiftTimes } from './shift.logic';
+import { getSettings } from '../settings/settings.service';
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Giờ dạng HH:mm');
 
@@ -105,6 +106,34 @@ export const shiftService = {
     if (isWeekend(workDate)) return undefined;
     const assignments = await prisma.shiftAssignment.findMany({ where: { employmentId }, include: { shift: true } });
     return pickEffective(assignments, workDate)?.shift;
+  },
+
+  /**
+   * Tra ca hàng loạt (nhập máy chấm công): nạp lịch ca + ca mặc định một lần.
+   * Trả về hàm (employmentId, ngày) → ca; không có ca → giờ hành chính trong Cấu hình.
+   */
+  async resolver(employmentIds: string[], from: Date, to: Date) {
+    const [rosters, assignments, settings] = await Promise.all([
+      prisma.shiftRoster.findMany({ where: { employmentId: { in: employmentIds }, workDate: { gte: addDays(from, -1), lte: addDays(to, 1) } }, include: { shift: true } }),
+      prisma.shiftAssignment.findMany({ where: { employmentId: { in: employmentIds } }, include: { shift: true } }),
+      getSettings(),
+    ]);
+    const rosterMap = new Map(rosters.map((r) => [`${r.employmentId}|${formatDate(r.workDate)}`, r.shift]));
+    const byEmp = new Map<string, typeof assignments>();
+    for (const a of assignments) byEmp.set(a.employmentId, [...(byEmp.get(a.employmentId) ?? []), a]);
+    const office: ShiftTimes = { startTime: settings.attendance.workStart, endTime: settings.attendance.workEnd, breakMinutes: 60, lateGraceMinutes: settings.attendance.lateGraceMinutes };
+    return (employmentId: string, workDate: Date): { id: string | null } & ShiftTimes => {
+      const key = `${employmentId}|${formatDate(workDate)}`;
+      if (rosterMap.has(key)) {
+        const s = rosterMap.get(key);
+        return s ? s : { id: null, ...office };
+      }
+      if (!isWeekend(workDate)) {
+        const a = pickEffective(byEmp.get(employmentId) ?? [], workDate);
+        if (a) return a.shift;
+      }
+      return { id: null, ...office };
+    };
   },
 
   /** Lịch ca một tháng cho nhiều người: { employmentId: { 'YYYY-MM-DD': shiftId | null } }. */

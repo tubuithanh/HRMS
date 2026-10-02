@@ -77,8 +77,17 @@ hồ sơ nhân sự thì mới dùng được phần này.
 
 - **Nhân sự:** hồ sơ, quá trình làm việc, hợp đồng lao động và phụ lục (kiểm tra theo BLLĐ 2019, cảnh báo sắp hết hạn), vị trí, lương cơ bản, hồ sơ thuế, người phụ thuộc, giấy tờ.
 - **Tổ chức:** cây phòng ban, chức danh, vị trí định biên.
-- **Chấm công:** nhân viên tự chấm vào/ra, nhân sự nhập/sửa, bảng công tháng. Đi muộn tính theo giờ bắt đầu ca
-  (không có ca thì theo giờ hành chính trong Cấu hình). Máy chủ luôn dùng giờ Việt Nam (`TZ=Asia/Ho_Chi_Minh`).
+- **Chấm công:** nhân viên tự chấm vào/ra, nhân sự nhập/sửa, bảng công tháng. Máy chủ luôn dùng giờ Việt Nam (`TZ=Asia/Ho_Chi_Minh`).
+  - *Giờ công theo ca*: mỗi ngày tính phút đi muộn, về sớm, giờ làm thực tế (trừ nghỉ giữa ca) và giờ làm đêm 22:00 – 06:00
+    (Điều 106) — theo ca của người đó, không có ca thì theo giờ hành chính trong Cấu hình.
+  - *Phụ cấp làm đêm* ≥ 30% lương giờ (Điều 98, tỷ lệ chỉnh trong Cấu hình) tự vào lương, miễn thuế TNCN.
+    Tuỳ chọn trừ lương theo phút đi muộn / về sớm (mặc định tắt).
+  - *Nhập máy chấm công* (Chấm công → Nhập máy chấm công): Excel / CSV mỗi dòng một lần quẹt (mã chấm công + thời gian,
+    hoặc Ngày + Giờ tách cột như ZKTeco). Ghép theo ca: quẹt sớm nhất = vào, muộn nhất = ra, mỗi lần quẹt gán cho ca gần nhất
+    (ca đêm quẹt ra rạng sáng thuộc ngày hôm trước), bỏ quẹt trùng trong 2 phút, mã `1` khớp `0001`.
+    Xem trước → chỉ nhập khi không còn lỗi; ngày nhân sự đã nhập tay được giữ nguyên.
+  - *Giới hạn vị trí* khi tự chấm công (Cấu hình): theo GPS (bán kính quanh văn phòng), theo IP / dải mạng công ty, hoặc một trong hai.
+    Trên Render cần `TRUST_PROXY_HOPS` (mặc định 1 khi `NODE_ENV=production`) để lấy đúng IP người dùng.
 - **Ca làm việc:** danh mục ca (kể cả ca qua đêm), ca mặc định theo ngày hiệu lực (áp thứ 2 – thứ 6), lịch ca từng ngày
   (bấm ô để đổi), xoay ca theo chu kỳ cho nhóm người (chia tổ lệch ca). Ca đêm: chấm ra sáng hôm sau vẫn đóng đúng ngày công.
 - **Ngày lễ & làm thêm giờ:** danh mục ngày lễ (tự tính vào bảng công, không trừ phép); đơn làm thêm

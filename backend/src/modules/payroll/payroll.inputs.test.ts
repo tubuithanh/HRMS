@@ -1,7 +1,10 @@
+import Decimal from 'decimal.js';
 import { describe, expect, it } from 'vitest';
 import { aggregateElements } from './pay-element';
 import { calcPayroll } from './payroll.calc';
 import {
+  lateEarlyDeduction,
+  nightAllowance,
   buildPayrollInput,
   calcPaidDays,
   ElementDef,
@@ -241,5 +244,41 @@ describe('khấu trừ chuyển từ kỳ trước', () => {
       advanceDeductions: [], carriedDeduction: '0', standardDays: 22, paidDays: 22,
     });
     expect(built.lines.some((l) => l.code === 'CARRIED')).toBe(false);
+  });
+});
+
+
+describe('phụ cấp làm đêm, trừ đi muộn / về sớm', () => {
+  // Lương 22tr, công chuẩn 22 → 1tr/ngày → 125.000đ/giờ
+  const args = {
+    baseSalary: '22000000',
+    contractInsuranceSalary: '22000000',
+    recurring: [],
+    oneOff: [],
+    advanceDeductions: [],
+    standardDays: 22,
+    paidDays: '22',
+  };
+  it('phụ cấp đêm = lương giờ × giờ đêm × 30%, miễn thuế', () => {
+    expect(nightAllowance(125_000, 40).toNumber()).toBe(1_500_000);
+    expect(nightAllowance(125_000, 40, 10).toNumber()).toBe(1_500_000); // dưới 30% → áp 30%
+    expect(nightAllowance(125_000, 40, 50).toNumber()).toBe(2_500_000);
+    const b = buildPayrollInput({ ...args, nightHours: '40', nightAllowancePercent: 30 });
+    const night = b.lines.find((l) => l.code === 'NIGHT')!;
+    expect(String(night.amount)).toBe('1500000');
+    expect(night.taxTreatment).toBe('EXEMPT');
+    expect(night.isInsuranceBase).toBeFalsy();
+  });
+  it('trừ đi muộn / về sớm vào lương theo ngày công', () => {
+    expect(lateEarlyDeduction(125_000, 90).toNumber()).toBe(187_500);
+    const b = buildPayrollInput({ ...args, lateEarlyMinutes: 90 });
+    const base = b.lines.find((l) => l.code === 'BASE')!;
+    expect(new Decimal(base.amount).toNumber()).toBe(22_000_000 - 187_500);
+    expect(base.name).toContain('90 phút');
+  });
+  it('không bật / không có phút: không đổi', () => {
+    const b = buildPayrollInput({ ...args, lateEarlyMinutes: 0, nightHours: '0' });
+    expect(new Decimal(b.lines.find((l) => l.code === 'BASE')!.amount).toNumber()).toBe(22_000_000);
+    expect(b.lines.some((l) => l.code === 'NIGHT')).toBe(false);
   });
 });

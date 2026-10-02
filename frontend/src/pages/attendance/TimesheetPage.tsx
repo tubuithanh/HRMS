@@ -84,6 +84,8 @@ export default function TimesheetPage() {
                     <th title="Vắng không phép">Vắng</th>
                     <th title="Ngày công hưởng lương">Hưởng lương</th>
                     <th title="Giờ làm thêm đã duyệt">Giờ OT</th>
+                    <th title="Tổng phút đi muộn / về sớm theo ca">Muộn/sớm</th>
+                    <th title="Giờ làm ban đêm 22:00 – 06:00 (phụ cấp làm đêm)">Giờ đêm</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -115,6 +117,8 @@ export default function TimesheetPage() {
                       <td>{r.absent}</td>
                       <td><strong>{r.paidDays}</strong></td>
                       <td>{r.overtimeHours || ''}</td>
+                      <td title={`Muộn ${r.lateMinutes ?? 0} phút · sớm ${r.earlyMinutes ?? 0} phút`}>{(r.lateMinutes ?? 0) + (r.earlyMinutes ?? 0) || ''}</td>
+                      <td>{r.nightHours || ''}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -192,12 +192,20 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   note: string | null;
   source: string;
+  shiftId?: string | null;
+  lateMinutes?: number;
+  earlyMinutes?: number;
+  workedMinutes?: number | null;
+  nightMinutes?: number;
 }
 
 export interface TimesheetRow {
   employmentId: string;
   codeEmp: string;
   person: PersonRef;
+  lateMinutes?: number;
+  earlyMinutes?: number;
+  nightHours?: number;
   standardDays: number;
   present: number;
   late: number;

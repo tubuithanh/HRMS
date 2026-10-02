@@ -14,6 +14,7 @@ import PayrollPage from './pages/payroll/PayrollPage';
 import PeriodDetailPage from './pages/payroll/PeriodDetailPage';
 import ReportsPage from './pages/payroll/ReportsPage';
 import ShiftsPage from './pages/attendance/ShiftsPage';
+import MachineImportPage from './pages/attendance/MachineImportPage';
 import RewardsPage from './pages/people/RewardsPage';
 import TrainingsPage, { TrainingDetailPage } from './pages/people/TrainingsPage';
 import ReviewsPage, { ReviewCyclePage } from './pages/people/ReviewsPage';
@@ -92,6 +93,7 @@ function AppRoutes() {
         <Route path="overtime" element={staff(<OvertimeAdminPage />)} />
         <Route path="holidays" element={staff(<HolidaysPage />)} />
         <Route path="shifts" element={staff(<ShiftsPage />)} />
+        <Route path="attendance/machine" element={<RequireRole roles={['ADMIN', 'HR']}><MachineImportPage /></RequireRole>} />
         <Route path="rewards" element={staff(<RewardsPage />)} />
         <Route path="trainings" element={staff(<TrainingsPage />)} />
         <Route path="trainings/:id" element={staff(<TrainingDetailPage />)} />

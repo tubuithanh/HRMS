@@ -23,6 +23,8 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('8h'),
   // Địa chỉ giao diện web, dùng để tạo link đặt lại mật khẩu trong email.
   APP_URL: z.string().url().default('http://localhost:5173'),
+  /** Số proxy đứng trước server (Render: 1) để lấy đúng IP người dùng. 0 = chạy trực tiếp. */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).optional(),
   // Gửi email (tuỳ chọn). Không cấu hình thì link đặt lại mật khẩu được in ra log.
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().default(587),

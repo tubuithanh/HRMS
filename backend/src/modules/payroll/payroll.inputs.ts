@@ -57,6 +57,12 @@ export interface BuildInputArgs {
   overtime?: Array<{ hours: Decimal.Value; multiplier: Decimal.Value }>;
   /** Khấu trừ kỳ trước chưa trừ hết do vượt trần 30% — trừ tiếp kỳ này. */
   carriedDeduction?: Decimal.Value;
+  /** Giờ làm việc ban đêm trong ca (22:00 – 06:00) → phụ cấp làm đêm. */
+  nightHours?: Decimal.Value;
+  /** % phụ cấp làm đêm trên lương giờ (tối thiểu 30%, Điều 98 BLLĐ). */
+  nightAllowancePercent?: number;
+  /** Tổng phút đi muộn + về sớm cần trừ lương (chỉ khi bật trong Cấu hình). */
+  lateEarlyMinutes?: number;
 }
 
 export interface BuiltInput {
@@ -134,17 +140,38 @@ export function overtimePay(hourly: Decimal.Value, hours: Decimal.Value, multipl
   };
 }
 
+/**
+ * Phụ cấp làm việc ban đêm: lương giờ × số giờ đêm × tỷ lệ (≥ 30%).
+ * Phần trả cao hơn ban ngày được miễn thuế TNCN (Thông tư 111/2013, Điều 3 khoản 1 điểm i).
+ */
+export function nightAllowance(hourly: Decimal.Value, nightHours: Decimal.Value, percent = 30): Decimal {
+  return roundVND(new Decimal(hourly).mul(nightHours).mul(Math.max(30, percent)).div(100));
+}
+
+/** Tiền trừ cho số phút đi muộn / về sớm = lương giờ / 60 × số phút. */
+export function lateEarlyDeduction(hourly: Decimal.Value, minutes: number): Decimal {
+  return minutes > 0 ? roundVND(new Decimal(hourly).div(60).mul(minutes)) : new Decimal(0);
+}
+
 export function buildPayrollInput(a: BuildInputArgs): BuiltInput {
   const factor = (amount: Decimal.Value) => prorate(amount, a.paidDays, a.standardDays);
+  const hourly = hourlyRate(a.baseSalary, a.standardDays);
+  const baseByDays = factor(a.baseSalary);
+  // Đi muộn / về sớm: trừ thẳng vào lương theo ngày công (giảm cả thu nhập chịu thuế), không âm.
+  const lateCut = Decimal.min(lateEarlyDeduction(hourly, a.lateEarlyMinutes ?? 0), baseByDays);
+  const night = a.nightHours && new Decimal(a.nightHours).gt(0) ? nightAllowance(hourly, a.nightHours, a.nightAllowancePercent) : null;
 
   const lines: PayElementLine[] = [
     {
       code: 'BASE',
-      name: 'Lương theo ngày công',
+      name: lateCut.gt(0) ? `Lương theo ngày công (đã trừ ${a.lateEarlyMinutes} phút đi muộn / về sớm)` : 'Lương theo ngày công',
       type: 'EARNING',
-      amount: factor(a.baseSalary),
+      amount: new Decimal(baseByDays).minus(lateCut),
       taxTreatment: 'TAXABLE',
     },
+    ...(night && night.gt(0)
+      ? [{ code: 'NIGHT', name: `Phụ cấp làm đêm (${new Decimal(a.nightHours!).toString()} giờ × ${Math.max(30, a.nightAllowancePercent ?? 30)}%)`, type: 'EARNING' as const, amount: night, taxTreatment: 'EXEMPT' as const }]
+      : []),
     ...a.recurring.map((r) =>
       toLine(r.element, r.element.type === 'EARNING' && r.element.isProrated ? factor(r.amount) : r.amount),
     ),

@@ -21,7 +21,8 @@ router.get(
   '/public',
   asyncHandler(async (_req, res) => {
     const s = await getSettings();
-    res.json({ data: { attendance: s.attendance, payroll: s.payroll, approval: s.approval } });
+    // Không lộ IP / toạ độ văn phòng — chỉ cho biết có cần gửi vị trí không.
+    res.json({ data: { attendance: s.attendance, payroll: s.payroll, approval: s.approval, checkin: { mode: s.checkin.mode } } });
   }),
 );
 
@@ -30,7 +31,7 @@ router.use(requireRole('ADMIN'));
 /** GET /api/settings — toàn bộ cấu hình, thông tin công ty, tham số pháp lý (chỉ xem), trạng thái email. */
 router.get(
   '/',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const [settings, company, current] = await Promise.all([getSettings(), getCompany(), loadLegalParams(new Date())]);
     res.json({
       data: {
@@ -50,6 +51,8 @@ router.get(
           })),
         },
         mail: { configured: !!env.SMTP_HOST, host: env.SMTP_HOST ?? null, from: env.SMTP_FROM, appUrl: env.APP_URL },
+        /** IP của người đang xem (sau proxy) — để điền nhanh IP văn phòng. */
+        clientIp: req.ip ?? null,
       },
     });
   }),

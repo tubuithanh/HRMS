@@ -640,13 +640,13 @@ async function main() {
       }
       const remote = e.office && r > 0.96;
       const late = !remote && r < 0.08;
-      const checkIn = late ? at(d, 8, int(31, 59)) : at(d, pick([7, 7, 8]), int(0, 29) + (rand() < 0.5 ? 30 : 0));
-      const inTime = checkIn.getHours() === 7 && checkIn.getMinutes() < 30 ? at(d, 7, 30 + int(0, 29)) : checkIn;
+      // Đúng giờ: 7:30 – 8:29; muộn: 8:31 – 8:59 (giờ hành chính 8:30).
+      const inTime = late ? at(d, 8, int(31, 59)) : at(d, 7, 30 + int(0, 59));
       attendance.push({
         employmentId: e.id,
         workDate: d,
         checkIn: inTime,
-        checkOut: isToday ? null : at(d, 17, int(0, 59)),
+        checkOut: isToday ? null : chance(0.03) ? at(d, 16, int(45, 80)) : at(d, 17, int(30, 75)),
         status: remote ? 'REMOTE' : late ? 'LATE' : 'PRESENT',
         source: chance(0.9) ? 'SELF' : 'MANUAL',
       });
@@ -826,7 +826,7 @@ async function main() {
     await prisma.shiftAssignment.createMany({
       data: [
         ...officeIds.map((employmentId) => ({ employmentId, shiftId: shiftByCode.HC, effectiveDate: HISTORY_START })),
-        ...factory.map((e) => ({ employmentId: e.id, shiftId: shiftByCode.CA1, effectiveDate: HISTORY_START })),
+        ...factory.map((e) => ({ employmentId: e.id, shiftId: shiftByCode.CA1, effectiveDate: monthStart(0) })),
       ],
     });
     // Xoay ca tháng này và tháng sau: mỗi ca 1 tuần, công nhân chia 3 tổ lệch nhau; chủ nhật nghỉ.
@@ -841,6 +841,39 @@ async function main() {
       });
     }
     for (let i = 0; i < rosterRows.length; i += 1000) await prisma.shiftRoster.createMany({ data: rosterRows.slice(i, i + 1000) });
+
+    // Giờ vào / ra của công nhân trong tháng này theo đúng ca xoay; tính giờ công (muộn, sớm, giờ đêm) cho mọi bản ghi.
+    console.log('… Giờ công theo ca');
+    const { shiftService } = await import('../src/modules/shift/shift.service');
+    const { computeAttendanceTimes, shiftWindow } = await import('../src/modules/shift/shift.logic');
+    const records = await prisma.attendanceRecord.findMany({ where: { checkIn: { not: null } }, select: { id: true, employmentId: true, workDate: true, checkIn: true, checkOut: true, status: true } });
+    const resolve = await shiftService.resolver([...new Set(records.map((r) => r.employmentId))], HISTORY_START, TODAY);
+    const factoryIds = new Set(factory.map((e) => e.id));
+    const rows: string[] = [];
+    for (const r of records) {
+      const sh = resolve(r.employmentId, r.workDate);
+      let { checkIn, checkOut } = r;
+      if (factoryIds.has(r.employmentId) && r.workDate >= monthStart(0) && sh.id) {
+        const w = shiftWindow(r.workDate, sh);
+        const late = r.status === 'LATE';
+        checkIn = new Date(w.start.getTime() + (late ? int(6, 25) : -int(3, 20)) * 60_000);
+        checkOut = r.checkOut ? new Date(w.end.getTime() + (chance(0.06) ? -int(10, 40) : int(0, 15)) * 60_000) : null;
+        if (checkOut && checkOut > new Date()) checkOut = null;
+      }
+      const t = computeAttendanceTimes(checkIn, checkOut, r.workDate, sh);
+      const ts = (d: Date | null) => (d ? `'${d.toISOString()}'::timestamp` : 'NULL::timestamp');
+      rows.push(`('${r.id}'::uuid, ${ts(checkIn)}, ${ts(checkOut)}, ${sh.id ? `'${sh.id}'::uuid` : 'NULL::uuid'}, ${t.lateMinutes}, ${t.earlyMinutes}, ${t.workedMinutes ?? 'NULL'}, ${t.nightMinutes}, '${t.lateMinutes > 0 ? 'LATE' : r.status === 'LATE' ? 'PRESENT' : r.status}')`);
+    }
+    for (let i = 0; i < rows.length; i += 1000) {
+      await prisma.$executeRawUnsafe(`
+        UPDATE attendance_record a SET "checkIn" = v.ci, "checkOut" = v.co, "shiftId" = v.sid, "lateMinutes" = v.l::int, "earlyMinutes" = v.e::int,
+          "workedMinutes" = v.w::int, "nightMinutes" = v.n::int, status = v.st::"AttendanceStatus"
+        FROM (VALUES ${rows.slice(i, i + 1000).join(',')}) AS v(id, ci, co, sid, l, e, w, n, st)
+        WHERE a.id = v.id`);
+    }
+    // Tính lại kỳ lương tháng này để có phụ cấp làm đêm.
+    const current = await prisma.payPeriod.findFirst({ where: { dateStart: monthStart(0) } });
+    if (current && current.status !== 'LOCKED') await payrollService.run({ payPeriodId: current.id, region: 1 });
   }
 
   // ---------- Khen thưởng – kỷ luật, đào tạo, đánh giá ----------

@@ -7,7 +7,8 @@ import { money } from '../lib/format';
 
 interface SettingsData {
   settings: {
-    attendance: { workStart: string; workEnd: string; lateGraceMinutes: number };
+    attendance: { workStart: string; workEnd: string; lateGraceMinutes: number; nightAllowancePercent: number; deductLateEarly: boolean };
+    checkin: { mode: string; lat: number | null; lng: number | null; radiusMeters: number; allowedIps: string };
     payroll: { defaultRegion: number; payDay: number };
     approval: { twoStep: boolean };
     security: { maxFailedLogins: number; lockMinutes: number; sessionHours: number; resetTokenMinutes: number };
@@ -22,6 +23,7 @@ interface SettingsData {
     insurance: Array<{ type: string; employeeRate: string; companyRate: string; cap: string }>;
   };
   mail: { configured: boolean; host: string | null; from: string; appUrl: string };
+  clientIp: string | null;
 }
 
 type Values = Record<string, string | boolean>;
@@ -128,11 +130,13 @@ export default function SettingsPage() {
           <Section
             title="Chấm công"
             icon="bi-clock"
-            description="Nhân viên chấm công vào sau giờ vào làm + số phút cho phép được tính là đi muộn."
+            description="Giờ hành chính áp cho người không có ca. Người có ca: đi muộn / về sớm theo giờ ca."
             fields={[
               { name: 'workStart', label: 'Giờ vào làm (HH:mm)', required: true, placeholder: '08:30' },
               { name: 'workEnd', label: 'Giờ tan ca (HH:mm)', required: true, placeholder: '17:30' },
               { name: 'lateGraceMinutes', label: 'Số phút cho phép đi muộn', type: 'number', required: true },
+              { name: 'nightAllowancePercent', label: 'Phụ cấp làm đêm (% lương giờ, tối thiểu 30)', type: 'number', required: true },
+              { name: 'deductLateEarly', label: 'Trừ lương theo số phút đi muộn / về sớm', type: 'checkbox', full: true },
             ]}
             initial={s.attendance}
             save={saveGroup('attendance')}
@@ -167,6 +171,38 @@ export default function SettingsPage() {
         </div>
 
         <div className="col-xl-6">
+          <Section
+            title="Giới hạn vị trí chấm công"
+            icon="bi-geo-alt"
+            description={
+              <>
+                Áp cho nhân viên tự chấm công. GPS: trong bán kính quanh văn phòng (lấy toạ độ trên Google Maps: chuột phải vào vị trí → bấm dòng toạ độ để sao chép).
+                IP: chỉ khi dùng mạng công ty — nhập IP hoặc dải mạng, vd <code>203.113.10.0/24</code>.
+                {data.clientIp && <> IP bạn đang dùng: <code>{data.clientIp}</code>.</>}
+              </>
+            }
+            fields={[
+              {
+                name: 'mode',
+                label: 'Chế độ',
+                type: 'select',
+                required: true,
+                options: [
+                  { value: 'OFF', label: 'Không giới hạn' },
+                  { value: 'GPS', label: 'Theo vị trí GPS' },
+                  { value: 'IP', label: 'Theo mạng công ty (IP)' },
+                  { value: 'GPS_OR_IP', label: 'GPS hoặc mạng công ty' },
+                ],
+              },
+              { name: 'radiusMeters', label: 'Bán kính cho phép (mét)', type: 'number', required: true },
+              { name: 'lat', label: 'Vĩ độ văn phòng', type: 'number', nullable: true },
+              { name: 'lng', label: 'Kinh độ văn phòng', type: 'number', nullable: true },
+              { name: 'allowedIps', label: 'IP / dải mạng cho phép (mỗi dòng một mục)', type: 'textarea', full: true },
+            ]}
+            initial={s.checkin}
+            save={(body) => api.put('/settings', { checkin: { ...body, lat: body.lat ?? null, lng: body.lng ?? null, allowedIps: body.allowedIps ?? '' } })}
+            onSaved={reload}
+          />
           <Section
             title="Bảo mật đăng nhập"
             icon="bi-shield-lock"

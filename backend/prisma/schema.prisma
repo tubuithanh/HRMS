@@ -743,6 +743,15 @@ model AttendanceRecord {
   status       AttendanceStatus @default(PRESENT)
   shiftId      String?          @db.Uuid
   shift        Shift?           @relation(fields: [shiftId], references: [id])
+  // Giờ công theo ca (tính khi chấm vào/ra, nhập tay, nhập máy chấm công)
+  lateMinutes   Int             @default(0)
+  earlyMinutes  Int             @default(0)
+  workedMinutes Int?
+  nightMinutes  Int             @default(0)
+  // Vị trí lúc tự chấm công (kiểm tra giới hạn vị trí)
+  checkInLat    Decimal?        @db.Decimal(9, 6)
+  checkInLng    Decimal?        @db.Decimal(9, 6)
+  checkInIp     String?
   note         String?
   // SELF: nhân viên tự chấm; MANUAL: nhân sự nhập/sửa
   source       String           @default("MANUAL")
