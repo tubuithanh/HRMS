@@ -7,6 +7,7 @@ import {
   overtimeService as svc,
   reviewOvertimeSchema,
 } from './overtime.service';
+import { overtimeSuggestions } from './overtime.suggest';
 
 /** Ngày lễ và làm thêm giờ — dành cho nhân sự. Nhân viên dùng /api/me/overtime. */
 const router = Router();
@@ -33,6 +34,15 @@ router.delete(
   asyncHandler(async (req, res) => {
     await svc.removeHoliday(req.params.id);
     res.json({ data: { deleted: true } });
+  }),
+);
+
+// ----- Đề xuất làm thêm giờ từ chấm công -----
+router.get(
+  '/overtime-suggestions',
+  asyncHandler(async (req, res) => {
+    const q = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Tháng dạng YYYY-MM'), employmentId: z.string().uuid().optional() }).parse(req.query);
+    res.json({ data: await overtimeSuggestions(q.month, q.employmentId) });
   }),
 );
 

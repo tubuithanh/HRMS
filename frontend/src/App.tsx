@@ -19,6 +19,9 @@ import RewardsPage from './pages/people/RewardsPage';
 import TrainingsPage, { TrainingDetailPage } from './pages/people/TrainingsPage';
 import ReviewsPage, { ReviewCyclePage } from './pages/people/ReviewsPage';
 import MyReviewsPage from './pages/me/MyReviewsPage';
+import BenefitsPage from './pages/people/BenefitsPage';
+import AssetsPage from './pages/people/AssetsPage';
+import ChecklistsPage, { ChecklistDetailPage, MyTasksPage } from './pages/people/ChecklistsPage';
 import LeaveAdminPage from './pages/leave/LeaveAdminPage';
 import TimesheetPage from './pages/attendance/TimesheetPage';
 import OvertimeAdminPage from './pages/attendance/OvertimeAdminPage';
@@ -83,6 +86,8 @@ function AppRoutes() {
         <Route path="me/approvals" element={<MyApprovalsPage />} />
         <Route path="me/team" element={<MyTeamPage />} />
         <Route path="me/reviews" element={<MyReviewsPage />} />
+        <Route path="me/tasks" element={<MyTasksPage />} />
+        <Route path="tasks/:id" element={<ChecklistDetailPage />} />
 
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="persons" element={staff(<PersonsPage />)} />
@@ -95,6 +100,9 @@ function AppRoutes() {
         <Route path="shifts" element={staff(<ShiftsPage />)} />
         <Route path="attendance/machine" element={<RequireRole roles={['ADMIN', 'HR']}><MachineImportPage /></RequireRole>} />
         <Route path="rewards" element={staff(<RewardsPage />)} />
+        <Route path="checklists" element={staff(<ChecklistsPage />)} />
+        <Route path="assets" element={staff(<AssetsPage />)} />
+        <Route path="benefits" element={staff(<BenefitsPage />)} />
         <Route path="trainings" element={staff(<TrainingsPage />)} />
         <Route path="trainings/:id" element={staff(<TrainingDetailPage />)} />
         <Route path="reviews" element={staff(<ReviewsPage />)} />

@@ -16,6 +16,9 @@ import settingsRoutes from './modules/settings/settings.routes';
 import shiftRoutes from './modules/shift/shift.routes';
 import reportRoutes from './modules/reports/reports.routes';
 import peopleRoutes from './modules/people/people.routes';
+import benefitsRoutes from './modules/benefits/benefits.routes';
+import assetRoutes from './modules/assets/asset.routes';
+import checklistRoutes from './modules/checklist/checklist.routes';
 
 /**
  * Phân quyền theo phân hệ: `write` được mọi phương thức,
@@ -51,6 +54,10 @@ router.use('/shifts', requireAuth, access(['HR'], ['ACCOUNTANT']), shiftRoutes);
 router.use('/reports', requireAuth, access(['ACCOUNTANT'], ['HR']), reportRoutes);
 // Khen thưởng – kỷ luật, đào tạo, đánh giá: nhân sự ghi, kế toán xem
 router.use('/people', requireAuth, access(['HR'], ['ACCOUNTANT']), peopleRoutes);
+// Chế độ BHXH: nhân sự lập hồ sơ, kế toán theo dõi chi trả
+router.use('/benefits', requireAuth, access(['HR', 'ACCOUNTANT']), benefitsRoutes);
+router.use('/assets', requireAuth, access(['HR'], ['ACCOUNTANT']), assetRoutes);
+router.use('/checklists', requireAuth, access(['HR'], ['ACCOUNTANT']), checklistRoutes);
 router.use('/recruitment', requireAuth, access(['HR']), recruitmentRoutes);
 // Nhập / xuất Excel: phân quyền theo từng route bên trong
 router.use('/import', requireAuth, importRoutes);

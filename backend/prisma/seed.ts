@@ -202,6 +202,10 @@ async function main() {
     await prisma.shift.upsert({ where: { code: sh.code }, update: {}, create: sh });
   }
 
+  // Mẫu danh sách việc tiếp nhận / nghỉ việc
+  const { ensureDefaultTemplates } = await import('../src/modules/checklist/checklist.service');
+  await ensureDefaultTemplates();
+
   // Tài khoản quản trị đầu tiên. Chỉ tạo nếu chưa có, không ghi đè mật khẩu.
   const adminPassword = process.env.SEED_ADMIN_PASSWORD;
   if (!adminPassword || adminPassword.length < 8) {
@@ -217,7 +221,7 @@ async function main() {
     },
   });
 
-  console.log('✅ Seed xong: tham số pháp lý 2026, biểu thuế, tỷ lệ BH, công ty mẫu, loại nghỉ, khoản lương, ngày lễ, ca làm việc, tài khoản admin.');
+  console.log('✅ Seed xong: tham số pháp lý 2026, biểu thuế, tỷ lệ BH, công ty mẫu, loại nghỉ, khoản lương, ngày lễ, ca làm việc, mẫu tiếp nhận / nghỉ việc, tài khoản admin.');
 }
 
 main()

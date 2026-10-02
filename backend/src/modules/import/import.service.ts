@@ -1,3 +1,4 @@
+import { checklistService } from '../checklist/checklist.service';
 import ExcelJS from 'exceljs';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
@@ -405,6 +406,7 @@ async function applyEmployees(rows: EmployeeRow[]) {
   const company = await prisma.company.findFirst({ orderBy: { createdAt: 'asc' } });
   if (!company) throw new AppError('Chưa có công ty trong hệ thống', 400, 'NO_COMPANY');
   const today = todayDate();
+  const created: Array<{ id: string; dateHire: Date }> = [];
   await prisma.$transaction(
     async (tx) => {
       for (const r of rows) {
@@ -450,10 +452,15 @@ async function applyEmployees(rows: EmployeeRow[]) {
           },
         });
         await tx.employeeTaxProfile.create({ data: { employmentId: emp.id, taxMethod: 'PROGRESSIVE', effectiveDate: r.dateHire } });
+        created.push({ id: emp.id, dateHire: r.dateHire });
       }
     },
     { timeout: 120_000 },
   );
+  // Danh sách việc tiếp nhận cho từng người mới — không chặn nếu lỗi.
+  for (const c of created) {
+    await checklistService.start(c.id, 'ONBOARDING', c.dateHire).catch((e) => console.error('Không tạo được danh sách tiếp nhận:', e instanceof Error ? e.message : e));
+  }
 }
 
 async function applySalaries(rows: SalaryRow[]) {

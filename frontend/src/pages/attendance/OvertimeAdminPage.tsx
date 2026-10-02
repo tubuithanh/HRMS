@@ -6,6 +6,7 @@ import { useFetch } from '../../lib/hooks';
 import { currentMonth, date, labels, todayISO } from '../../lib/format';
 import { Employment, OvertimeRequest } from '../../types/models';
 import { ApprovalNote, LeaveStatusBadge } from '../leave/LeaveAdminPage';
+import OvertimeSuggestions from '../../components/OvertimeSuggestions';
 
 export function OvertimeStatusBadge({ status, stage }: { status: OvertimeRequest['status']; stage?: 'MANAGER' | 'HR' }) {
   return <LeaveStatusBadge status={status} stage={stage} />;
@@ -23,14 +24,14 @@ export const overtimeHint = (
   </div>
 );
 
-type Filter = 'PENDING' | 'APPROVED' | 'ALL';
+type Filter = 'PENDING' | 'APPROVED' | 'ALL' | 'SUGGEST';
 
 export default function OvertimeAdminPage() {
   const [tab, setTab] = useState<Filter>('PENDING');
   const [month, setMonth] = useState(currentMonth());
   const [dialog, setDialog] = useState<'create' | { review: OvertimeRequest; approve: boolean } | null>(null);
   const canWrite = useCanWrite('attendance');
-  const query = new URLSearchParams({ month, ...(tab === 'ALL' ? {} : { status: tab }) }).toString();
+  const query = new URLSearchParams({ month, ...(tab === 'ALL' || tab === 'SUGGEST' ? {} : { status: tab }) }).toString();
   const { data, error, loading, reload } = useFetch<OvertimeRequest[]>(`/attendance/overtime?${query}`);
   const employments = useFetch<Employment[]>(canWrite ? '/corehr/employments' : null);
   const totalHours = (data ?? []).filter((o) => o.status === 'APPROVED').reduce((s, o) => s + Number(o.hours), 0);
@@ -66,11 +67,17 @@ export default function OvertimeAdminPage() {
           { key: 'PENDING', label: 'Chờ duyệt' },
           { key: 'APPROVED', label: 'Đã duyệt' },
           { key: 'ALL', label: 'Tất cả' },
+          { key: 'SUGGEST', label: 'Gợi ý từ chấm công' },
         ]}
         active={tab}
         onChange={setTab}
       />
-      <Card flush title={tab === 'APPROVED' ? `Tổng ${totalHours} giờ đã duyệt trong tháng` : undefined}>
+      {tab === 'SUGGEST' && (
+        <Card flush title="Ở lại sau giờ ca / đi làm ngày nghỉ nhưng chưa có đơn làm thêm giờ">
+          <OvertimeSuggestions month={month} mode="hr" onCreated={reload} />
+        </Card>
+      )}
+      {tab !== 'SUGGEST' && <Card flush title={tab === 'APPROVED' ? `Tổng ${totalHours} giờ đã duyệt trong tháng` : undefined}>
         <ErrorBox error={error} />
         <DataTable
           rows={data}
@@ -99,7 +106,7 @@ export default function OvertimeAdminPage() {
             },
           ]}
         />
-      </Card>
+      </Card>}
 
       {dialog === 'create' && (
         <FormModal

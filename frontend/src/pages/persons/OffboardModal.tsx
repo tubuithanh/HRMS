@@ -33,6 +33,7 @@ interface Preview {
   period: { code: string; status: string } | null;
   lockedUntil: string | null;
   trainingRefunds: { items: Array<{ courseId: string; code: string; name: string; commitmentEnd: string; refund: number }>; total: number };
+  assets: Array<{ id: string; code: string; name: string; assignedAt: string }>;
 }
 
 /**
@@ -178,6 +179,11 @@ export default function OffboardModal(props: { employmentId: string; onClose: ()
                 </ul>
               </div>
             )}
+            {p.assets.length > 0 && (
+              <div className="alert alert-info small py-2">
+                Còn giữ {p.assets.length} tài sản — danh sách việc nghỉ việc sẽ có mục thu hồi: {p.assets.map((a) => `${a.code} ${a.name}`).join(', ')}.
+              </div>
+            )}
             {p.suggested.remainingAdvance > 0 && (
               <div className="alert alert-warning small py-2">Còn {money(p.suggested.remainingAdvance)}đ tạm ứng chưa trừ — sẽ trừ hết trong kỳ lương cuối.</div>
             )}
@@ -205,7 +211,7 @@ export default function OffboardModal(props: { employmentId: string; onClose: ()
 
         <div className="alert alert-light border small mt-3 mb-0">
           Khi xác nhận: trạng thái → <strong>Đã nghỉ việc</strong>, vị trí công việc kết thúc (vị trí trở về trống), hợp đồng lao động chấm dứt,
-          phụ cấp cố định dừng, đơn nghỉ / làm thêm sau ngày nghỉ bị huỷ.
+          phụ cấp cố định dừng, đơn nghỉ / làm thêm sau ngày nghỉ bị huỷ, mở danh sách việc nghỉ việc (bàn giao, khoá tài khoản, thu hồi tài sản…).
         </div>
         <div className="d-flex justify-content-end gap-2 mt-3">
           <button type="button" className="btn btn-outline-secondary" onClick={props.onClose}>Huỷ</button>

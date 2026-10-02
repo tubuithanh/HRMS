@@ -224,6 +224,11 @@ async function main() {
     await prisma.$transaction([
       prisma.pitCertificate.deleteMany(),
       prisma.notification.deleteMany(),
+      prisma.checklistTask.deleteMany(),
+      prisma.employeeChecklist.deleteMany(),
+      prisma.assetAssignment.deleteMany(),
+      prisma.asset.deleteMany(),
+      prisma.insuranceClaim.deleteMany(),
       prisma.performanceReview.deleteMany(),
       prisma.reviewCycle.deleteMany(),
       prisma.trainingParticipant.deleteMany(),
@@ -969,6 +974,94 @@ async function main() {
     const { events } = await import('../src/modules/notification/events');
     const lastLocked = await prisma.payPeriod.findFirst({ where: { status: 'LOCKED' }, orderBy: { dateEnd: 'desc' } });
     if (lastLocked) await events.payrollLocked(lastLocked.id, lastLocked.code);
+  }
+
+  // ---------- Tài sản, chế độ BHXH, tiếp nhận / nghỉ việc ----------
+  console.log('… Tài sản, BHXH, tiếp nhận');
+  {
+    const { assetService } = await import('../src/modules/assets/asset.service');
+    const { insuranceService } = await import('../src/modules/benefits/insurance.service');
+    const { checklistService } = await import('../src/modules/checklist/checklist.service');
+    const hrUser = await prisma.user.findUnique({ where: { username: 'hr.demo' } });
+    const officeEmps = active.filter((e) => e.office);
+    const workerEmps = active.filter((e) => ['CN', 'CNKT', 'TT'].includes(e.job));
+    let n = 0;
+    const mk = async (code: string, name: string, category: 'LAPTOP' | 'PHONE' | 'UNIFORM' | 'CARD' | 'TOOL', cost: number, serial = true) =>
+      assetService.create({ code, name, category, serialNo: serial ? `SN${uniqueDigits('', 8)}` : null, purchaseDate: addDays(TODAY, -int(60, 900)), cost });
+    // Laptop cho văn phòng (cấp từ ngày vào làm), vài máy trong kho
+    for (const e of officeEmps.slice(0, 40)) {
+      const a = await mk(`LT-${String(++n).padStart(3, '0')}`, pick(['Laptop Dell Latitude 5440', 'Laptop ThinkPad E14', 'Laptop HP ProBook 450']), 'LAPTOP', pick([18_500_000, 21_000_000, 24_900_000]));
+      await assetService.assign(a.id, { employmentId: e.id, assignedAt: e.hire > HISTORY_START ? e.hire : HISTORY_START, conditionOut: 'Mới' });
+    }
+    for (let k = 0; k < 5; k++) await mk(`LT-${String(++n).padStart(3, '0')}`, 'Laptop Dell Latitude 5440', 'LAPTOP', 21_000_000);
+    // Điện thoại cho trưởng phòng / kinh doanh
+    let ph = 0;
+    for (const e of active.filter((x) => ['TP', 'GDK', 'NVKD'].includes(x.job)).slice(0, 15)) {
+      const a = await mk(`DT-${String(++ph).padStart(3, '0')}`, 'Điện thoại Samsung Galaxy A55', 'PHONE', 9_490_000);
+      await assetService.assign(a.id, { employmentId: e.id, assignedAt: HISTORY_START });
+    }
+    // Đồng phục / bảo hộ cho công nhân
+    let uf = 0;
+    for (const e of workerEmps.slice(0, 30)) {
+      const a = await mk(`BH-${String(++uf).padStart(3, '0')}`, 'Bộ bảo hộ lao động + giày', 'UNIFORM', 650_000, false);
+      await assetService.assign(a.id, { employmentId: e.id, assignedAt: HISTORY_START, conditionOut: 'Mới' });
+    }
+
+    // Chế độ BHXH: ốm đau (đã nộp, đã chi), chăm con ốm, sinh con (đang hưởng)
+    const pastWorkday = (daysAgo: number) => {
+      let d = addDays(TODAY, -daysAgo);
+      while (isWeekend(d)) d = addDays(d, -1);
+      return d;
+    };
+    const tryClaim = async (input: Parameters<typeof insuranceService.create>[0], status?: 'SUBMITTED' | 'PAID') => {
+      try {
+        await prisma.attendanceRecord.deleteMany({ where: { employmentId: input.employmentId, workDate: { gte: input.fromDate, lte: input.toDate ?? input.fromDate } } });
+        const { claim } = await insuranceService.create(input, hrUser?.id);
+        if (status) await insuranceService.setStatus(claim.id, 'SUBMITTED');
+        if (status === 'PAID') await insuranceService.setStatus(claim.id, 'PAID');
+      } catch (e) {
+        console.log('   (bỏ qua hồ sơ BHXH mẫu:', e instanceof Error ? e.message : e, ')');
+      }
+    };
+    const sick1 = pastWorkday(40);
+    await tryClaim({ employmentId: workerEmps[3].id, regime: 'SICK', fromDate: sick1, toDate: addDays(sick1, 2), note: 'Sốt xuất huyết — giấy ra viện' }, 'PAID');
+    const sick2 = pastWorkday(12);
+    await tryClaim({ employmentId: officeEmps[5].id, regime: 'SICK', fromDate: sick2, toDate: sick2, note: 'Giấy nghỉ việc hưởng BHXH' }, 'SUBMITTED');
+    const cs = pastWorkday(20);
+    await tryClaim({ employmentId: officeEmps[8].id, regime: 'CHILD_SICK', fromDate: cs, toDate: addDays(cs, 1), childBirthDate: addDays(TODAY, -900), note: 'Con viêm phổi' });
+    // Sinh con: nữ công nhân không có đơn nghỉ trong 6 tháng tới; xoá chấm công trong thời gian nghỉ cho khớp.
+    const birthFrom = monthStart(-1);
+    const birthTo = addDays(monthStart(5), -1);
+    for (const e of workerEmps.slice(6)) {
+      const p = await prisma.employment.findUnique({ where: { id: e.id }, select: { person: { select: { gender: true } } } });
+      if (p?.person.gender !== 'FEMALE') continue;
+      const clash = await prisma.leaveRequest.count({ where: { employmentId: e.id, status: { in: ['PENDING', 'APPROVED'] }, fromDate: { lte: birthTo }, toDate: { gte: birthFrom } } });
+      if (clash) continue;
+      await prisma.attendanceRecord.deleteMany({ where: { employmentId: e.id, workDate: { gte: birthFrom } } });
+      await prisma.shiftRoster.deleteMany({ where: { employmentId: e.id, workDate: { gte: birthFrom } } });
+      await tryClaim({ employmentId: e.id, regime: 'BIRTH', fromDate: birthFrom, childBirthDate: addDays(birthFrom, 2), childCount: 1, note: 'Sinh con thứ nhất' }, 'SUBMITTED');
+      break;
+    }
+
+    // Tính lại kỳ lương đang mở: ngày nghỉ hưởng BHXH không được công ty trả lương.
+    const openPeriod = await prisma.payPeriod.findFirst({ where: { dateStart: monthStart(0), status: { not: 'LOCKED' } } });
+    if (openPeriod) await payrollService.run({ payPeriodId: openPeriod.id, region: 1 });
+
+    // Tiếp nhận: người vào làm trong 45 ngày gần đây (đánh dấu xong một phần)
+    for (const e of active.filter((x) => x.hire >= addDays(TODAY, -45))) {
+      try {
+        const cl = await checklistService.start(e.id, 'ONBOARDING', e.hire);
+        const elapsed = Math.round((TODAY.getTime() - e.hire.getTime()) / 86_400_000);
+        for (const t of cl.tasks) {
+          if (t.dueDate && t.dueDate <= addDays(TODAY, -2) && chance(0.8)) {
+            await prisma.checklistTask.update({ where: { id: t.id }, data: { doneAt: addDays(t.dueDate, int(0, 2)), doneById: hrUser?.id ?? null } });
+          }
+        }
+        void elapsed;
+      } catch (err) {
+        console.log('   (bỏ qua danh sách tiếp nhận:', err instanceof Error ? err.message : err, ')');
+      }
+    }
   }
 
   // ---------- Tổng kết ----------

@@ -1,3 +1,4 @@
+import { checklistService } from '../checklist/checklist.service';
 import { Prisma } from '@prisma/client';
 import { prisma, TxClient } from '../../config/prisma';
 import { ConflictError, NotFoundError } from '../../common/errors/AppError';
@@ -86,7 +87,7 @@ export const coreHrService = {
       input.probationDays ?? 0,
     );
 
-    return prisma.employment.create({
+    const created = await prisma.employment.create({
       data: {
         personId: input.personId,
         companyId: input.companyId,
@@ -99,6 +100,9 @@ export const coreHrService = {
         status: probationEndDate ? 'PROBATION' : 'ACTIVE',
       },
     });
+    // Danh sách việc tiếp nhận nhân viên mới (theo mẫu mặc định) — không chặn nếu lỗi.
+    await checklistService.start(created.id, 'ONBOARDING', input.dateHire).catch((e) => console.error('Không tạo được danh sách tiếp nhận:', e instanceof Error ? e.message : e));
+    return created;
   },
 
   // ---------- Position ----------

@@ -33,6 +33,9 @@ const menu: Array<NavItem | NavGroup> = [
       { to: '/rewards', label: 'Khen thưởng – kỷ luật', icon: 'bi-award', roles: STAFF },
       { to: '/trainings', label: 'Đào tạo', icon: 'bi-mortarboard', roles: STAFF },
       { to: '/reviews', label: 'Đánh giá hiệu suất', icon: 'bi-graph-up-arrow', roles: STAFF },
+      { to: '/checklists', label: 'Tiếp nhận / nghỉ việc', icon: 'bi-list-check', roles: STAFF },
+      { to: '/assets', label: 'Tài sản cấp phát', icon: 'bi-laptop', roles: STAFF },
+      { to: '/benefits', label: 'Chế độ BHXH', icon: 'bi-heart-pulse', roles: STAFF },
     ],
   },
   {
@@ -66,6 +69,7 @@ const menu: Array<NavItem | NavGroup> = [
       { to: '/me/approvals', label: 'Duyệt của tôi', icon: 'bi-inbox', managerOnly: true },
       { to: '/me/team', label: 'Nhân viên của tôi', icon: 'bi-people-fill', managerOnly: true },
       { to: '/me/reviews', label: 'Đánh giá', icon: 'bi-clipboard-check' },
+      { to: '/me/tasks', label: 'Việc cần làm', icon: 'bi-check2-square' },
       { to: '/me/payslips', label: 'Phiếu lương', icon: 'bi-receipt' },
     ],
   },
@@ -125,12 +129,14 @@ export default function Layout() {
   // Là quản lý trực tiếp của ai không? Có bao nhiêu đơn chờ mình duyệt? (tải lại khi đổi trang)
   const team = useFetch<unknown[]>(user?.personId ? '/me/team' : null);
   const approvals = useFetch<{ leave: unknown[]; overtime: unknown[] }>(user?.personId ? '/me/approvals' : null, [location.pathname]);
+  const tasks = useFetch<unknown[]>('/me/tasks', [location.pathname]);
   const isManager = (team.data?.length ?? 0) > 0;
   const pendingApprovals = (approvals.data?.leave.length ?? 0) + (approvals.data?.overtime.length ?? 0);
   if (!user) return null;
 
   const allowed = (i: NavItem) => (!i.roles || i.roles.includes(user.role)) && (!i.managerOnly || isManager);
-  const badgeFor = (to: string) => (to === '/me/approvals' && pendingApprovals > 0 ? pendingApprovals : 0);
+  const badgeFor = (to: string) =>
+    to === '/me/approvals' && pendingApprovals > 0 ? pendingApprovals : to === '/me/tasks' ? (tasks.data?.length ?? 0) : 0;
 
   return (
     <div className="d-flex flex-column min-vh-100">

@@ -17,6 +17,11 @@ import { notificationService } from '../notification/notification.service';
 import { managerSchema, reviewService, selfSchema } from '../people/review.service';
 import { rewardService } from '../people/reward.service';
 import { trainingService } from '../people/training.service';
+import { checklistService } from '../checklist/checklist.service';
+import { assetService } from '../assets/asset.service';
+import { insuranceService } from '../benefits/insurance.service';
+import { overtimeSuggestions } from '../overtime/overtime.suggest';
+import { z } from 'zod';
 
 /**
  * Tự phục vụ cho mọi tài khoản đã đăng nhập: xem hồ sơ, phiếu lương,
@@ -339,6 +344,43 @@ router.get(
   asyncHandler(async (req, res) => {
     const employmentId = await myEmploymentId(req);
     res.json({ data: await trainingService.history(employmentId) });
+  }),
+);
+
+// ---------- Việc cần làm (tiếp nhận / nghỉ việc) ----------
+router.get('/tasks', asyncHandler(async (req, res) => res.json({ data: await checklistService.myTasks(req.user!) })));
+router.get('/checklists/:id', asyncHandler(async (req, res) => res.json({ data: await checklistService.get(req.params.id, req.user!) })));
+router.post(
+  '/checklist-tasks/:id',
+  asyncHandler(async (req, res) => {
+    const b = z.object({ done: z.boolean(), note: z.string().max(500).optional() }).parse(req.body);
+    res.json({ data: await checklistService.toggleTask(req.params.id, req.user!, b.done, b.note) });
+  }),
+);
+
+// ---------- Tài sản đang giữ, chế độ BHXH của tôi ----------
+router.get(
+  '/assets',
+  asyncHandler(async (req, res) => {
+    const employmentId = await myEmploymentId(req);
+    res.json({ data: await assetService.byEmployment(employmentId) });
+  }),
+);
+router.get(
+  '/insurance-claims',
+  asyncHandler(async (req, res) => {
+    const employmentId = await myEmploymentId(req);
+    res.json({ data: await insuranceService.list({ employmentId }) });
+  }),
+);
+
+/** Gợi ý đơn làm thêm giờ từ dữ liệu chấm công của tôi. */
+router.get(
+  '/overtime-suggestions',
+  asyncHandler(async (req, res) => {
+    const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Tháng dạng YYYY-MM').parse(req.query.month);
+    const employmentId = await myEmploymentId(req);
+    res.json({ data: await overtimeSuggestions(month, employmentId) });
   }),
 );
 

@@ -6,6 +6,8 @@ import { Employment, Person } from '../../types/models';
 import { EmploymentStatus } from '../persons/PersonsPage';
 import { RewardsTable, TrainingRow, TrainingsTable } from '../people/PersonPeopleTab';
 import { RewardRow } from '../people/RewardsPage';
+import { AssetHolding, HoldingsTable } from '../people/AssetsPage';
+import { Claim, ClaimsTable } from '../people/BenefitsPage';
 
 type Profile = Person & {
   employments: Array<Employment & { company: { name: string } }>;
@@ -86,8 +88,16 @@ export default function MyProfilePage() {
 function MyRewardsAndTrainings() {
   const rewards = useFetch<RewardRow[]>('/me/rewards');
   const trainings = useFetch<TrainingRow[]>('/me/trainings');
+  const assets = useFetch<AssetHolding[]>('/me/assets');
+  const claims = useFetch<Claim[]>('/me/insurance-claims');
   return (
     <>
+      <Card title="Tài sản đang giữ" flush>
+        <HoldingsTable rows={assets.data} loading={assets.loading} />
+      </Card>
+      <Card title="Chế độ BHXH" flush>
+        <ClaimsTable rows={claims.data} loading={claims.loading} />
+      </Card>
       <Card title="Khen thưởng – kỷ luật" flush>
         <RewardsTable rows={rewards.data} loading={rewards.loading} />
       </Card>

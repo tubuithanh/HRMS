@@ -7,6 +7,8 @@ import { pickEffective } from '../../common/utils/effectiveDating';
 import { calcFinalSettlement } from '../payroll/final-settlement';
 import { leaveService } from '../leave/leave.service';
 import { trainingService } from '../people/training.service';
+import { assetService } from '../assets/asset.service';
+import { checklistService } from '../checklist/checklist.service';
 import {
   estimateInsuredMonths,
   fullMonthsBetween,
@@ -143,6 +145,7 @@ export const offboardingService = {
       period: period ? { id: period.id, code: period.code, status: period.status } : null,
       lockedUntil: await lockedUntil(),
       trainingRefunds: await trainingService.refundsOnLeave(id, date),
+      assets: (await assetService.outstanding(id)).map((a) => ({ id: a.id, code: a.asset.code, name: a.asset.name, assignedAt: a.assignedAt })),
     };
   },
 
@@ -241,6 +244,13 @@ export const offboardingService = {
         paidIn,
       };
     });
-    return { ...summary, settlement: result };
+    // Danh sách việc nghỉ việc (kèm thu hồi tài sản còn giữ) — không chặn nếu lỗi.
+    let checklistId: string | null = null;
+    try {
+      checklistId = (await checklistService.start(id, 'OFFBOARDING', date)).id;
+    } catch (e) {
+      console.error('Không tạo được danh sách việc nghỉ việc:', e instanceof Error ? e.message : e);
+    }
+    return { ...summary, settlement: result, checklistId };
   },
 };

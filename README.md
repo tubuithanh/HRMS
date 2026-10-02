@@ -122,6 +122,19 @@ hồ sơ nhân sự thì mới dùng được phần này.
   Nhân viên chỉ thấy điểm của quản lý khi phiếu hoàn tất.
 - **Thông báo:** chuông trên menu (+ email nếu cấu hình SMTP) — đơn chờ duyệt, kết quả duyệt, phiếu lương mới, khen thưởng /
   kỷ luật, được cử đi học, việc cần đánh giá; nhân sự được nhắc hợp đồng hết hạn trong 30 ngày và sinh nhật.
+- **Chế độ BHXH** (Luật BHXH 2024 — cần cán bộ BHXH / kế toán đối chiếu): ốm đau (30/40/60 ngày/năm theo số năm đóng,
+  +10 nghề nặng nhọc; 75% lương tháng liền kề ÷ 24), chăm con ốm (20/15 ngày theo tuổi con), thai sản (sinh con 6 tháng +1 tháng
+  mỗi con từ con thứ hai, 100% bình quân 6 tháng, trợ cấp một lần 2 × lương cơ sở mỗi con; khám thai; sảy thai theo tuổi thai;
+  lao động nam 5/7/10/14 ngày), dưỡng sức 30% lương cơ sở/ngày. Lương tính hưởng lấy từ bảng lương. Lập hồ sơ tự ghi đơn nghỉ
+  không lương công ty (Ốm / Thai sản) → trừ khỏi công, nghỉ từ 14 ngày tự không đóng BH. Nháp → đã nộp → BHXH đã chi →
+  đưa vào lương (khoản Trợ cấp BHXH, miễn thuế). Xuất danh sách đề nghị (tham khảo mẫu 01B-HSB).
+- **Tiếp nhận / nghỉ việc:** danh sách việc theo mẫu (sửa được), mỗi việc giao cho Nhân sự / IT / Quản lý trực tiếp / Nhân viên /
+  Kế toán, có hạn. Tạo hợp đồng mới (kể cả nhập Excel) tự mở danh sách tiếp nhận; Cho nghỉ việc tự mở danh sách nghỉ việc kèm việc
+  thu hồi từng tài sản còn giữ. Mỗi người đánh dấu việc của vai trò mình ở *Cá nhân → Việc cần làm*.
+- **Tài sản cấp phát:** kho tài sản (máy tính, điện thoại, đồng phục / BHLĐ, thẻ…), cấp / thu hồi có tình trạng, lịch sử theo tài sản
+  và theo nhân viên; thu hồi tự đánh dấu xong việc trong danh sách nghỉ việc.
+- **Gợi ý làm thêm giờ từ chấm công:** ngày ở lại sau giờ ca từ 60 phút, đi làm thứ 7 / chủ nhật / lễ mà chưa có đơn → gợi ý số giờ
+  (làm tròn xuống 0,5) để tạo đơn; vẫn phải duyệt như đơn thường.
 - **Tuyển dụng:** tin tuyển dụng, ứng viên theo vòng, nhận việc → tạo hồ sơ nhân sự.
 - **Nhập / xuất Excel:** nhân viên mới, điều chỉnh lương, chấm công theo file mẫu; kiểm tra từng dòng,
   chỉ nhập khi không còn lỗi (tất cả hoặc không dòng nào). Xuất danh sách nhân sự.

@@ -56,7 +56,7 @@ export default function PersonDetailPage() {
         tabs={[
           { key: 'info', label: 'Thông tin' },
           { key: 'employment', label: `Hợp đồng & lương (${p.employments.length})` },
-          { key: 'people', label: 'Khen thưởng & đào tạo' },
+          { key: 'people', label: 'Tài sản, BHXH, khen thưởng, đào tạo' },
           ...subResources.map((s) => ({ key: s.key, label: s.title })),
         ]}
         active={tab}

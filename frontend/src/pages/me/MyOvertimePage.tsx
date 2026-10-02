@@ -7,6 +7,7 @@ import { OvertimeRequest } from '../../types/models';
 import { OvertimeStatusBadge, otKind, overtimeHint } from '../attendance/OvertimeAdminPage';
 import { ApprovalNote } from '../leave/LeaveAdminPage';
 import { SelfServiceError } from './MyProfilePage';
+import OvertimeSuggestions from '../../components/OvertimeSuggestions';
 
 export default function MyOvertimePage() {
   const [creating, setCreating] = useState(false);
@@ -47,6 +48,11 @@ export default function MyOvertimePage() {
               },
             ]}
           />
+        </Card>
+      )}
+      {!error && (
+        <Card flush title="Gợi ý từ dữ liệu chấm công tháng này">
+          <OvertimeSuggestions month={month} mode="me" onCreated={reload} />
         </Card>
       )}
       {creating && (

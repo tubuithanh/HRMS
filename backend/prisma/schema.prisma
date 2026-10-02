@@ -203,6 +203,9 @@ model Employment {
   trainings           TrainingParticipant[]
   reviews             PerformanceReview[] @relation("Reviewee")
   reviewsToDo         PerformanceReview[] @relation("Reviewer")
+  insuranceClaims     InsuranceClaim[]
+  checklists          EmployeeChecklist[]
+  assetAssignments    AssetAssignment[]
   isDelete            Boolean       @default(false)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
@@ -1256,4 +1259,127 @@ model Notification {
   @@unique([userId, dedupeKey])
   @@index([userId, readAt])
   @@map("notification")
+}
+
+// ---------- Chế độ BHXH ngắn hạn (Luật BHXH 2024) ----------
+
+/// Một lần hưởng chế độ: ốm đau, con ốm, thai sản (sinh con, khám thai, sảy thai, chồng nghỉ khi vợ sinh), dưỡng sức.
+/// Ngày nghỉ được ghi thành đơn nghỉ không lương công ty (loại OM / TS) để trừ khỏi công hưởng lương.
+model InsuranceClaim {
+  id             String     @id @default(uuid()) @db.Uuid
+  employmentId   String     @db.Uuid
+  employment     Employment @relation(fields: [employmentId], references: [id])
+  regime         String     // SICK, CHILD_SICK, BIRTH, CHECKUP, MISCARRIAGE, PATERNITY, RECOVERY
+  fromDate       DateTime   @db.Date
+  toDate         DateTime   @db.Date
+  days           Decimal    @db.Decimal(6, 1) // ngày hưởng (ngày làm việc / ngày lịch tuỳ chế độ)
+  months         Decimal?   @db.Decimal(4, 1) // sinh con: số tháng hưởng
+  /// Căn cứ tính: lương đóng BHXH tháng gần nhất / bình quân 6 tháng / lương cơ sở
+  baseAmount     Decimal    @db.Decimal(18, 4)
+  amount         Decimal    @db.Decimal(18, 4) // tiền chế độ
+  lumpSum        Decimal    @default(0) @db.Decimal(18, 4) // trợ cấp một lần khi sinh con
+  childCount     Int?
+  childBirthDate DateTime?  @db.Date
+  detail         Json?      // diễn giải cách tính
+  note           String?
+  status         String     @default("DRAFT") // DRAFT, SUBMITTED, PAID, REJECTED
+  submittedAt    DateTime?
+  paidAt         DateTime?
+  leaveRequestId String?    @unique @db.Uuid
+  periodElementId String?   @unique @db.Uuid
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([employmentId])
+  @@map("insurance_claim")
+}
+
+// ---------- Tiếp nhận / nghỉ việc: danh sách việc cần làm ----------
+
+model ChecklistTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  kind      String   // ONBOARDING, OFFBOARDING
+  name      String
+  /// [{ title, owner: HR | IT | MANAGER | EMPLOYEE | ACCOUNTANT, dueDays }] — dueDays tính từ ngày bắt đầu (âm = trước)
+  items     Json
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("checklist_template")
+}
+
+model EmployeeChecklist {
+  id           String          @id @default(uuid()) @db.Uuid
+  employmentId String          @db.Uuid
+  employment   Employment      @relation(fields: [employmentId], references: [id])
+  kind         String          // ONBOARDING, OFFBOARDING
+  name         String
+  startDate    DateTime        @db.Date
+  status       String          @default("OPEN") // OPEN, DONE
+  tasks        ChecklistTask[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([employmentId])
+  @@map("employee_checklist")
+}
+
+model ChecklistTask {
+  id          String            @id @default(uuid()) @db.Uuid
+  checklistId String            @db.Uuid
+  checklist   EmployeeChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  sortOrder   Int               @default(0)
+  title       String
+  owner       String            // HR, IT, MANAGER, EMPLOYEE, ACCOUNTANT
+  dueDate     DateTime?         @db.Date
+  doneAt      DateTime?
+  doneById    String?           @db.Uuid
+  note        String?
+  /// Việc sinh tự động (vd thu hồi tài sản) — trỏ tới đối tượng liên quan
+  refType     String?
+  refId       String?           @db.Uuid
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([checklistId])
+  @@map("checklist_task")
+}
+
+// ---------- Tài sản cấp phát ----------
+
+model Asset {
+  id           String            @id @default(uuid()) @db.Uuid
+  code         String            @unique
+  name         String
+  category     String            // LAPTOP, PHONE, UNIFORM, CARD, TOOL, OTHER
+  serialNo     String?
+  purchaseDate DateTime?         @db.Date
+  cost         Decimal?          @db.Decimal(18, 4)
+  status       String            @default("IN_STOCK") // IN_STOCK, ASSIGNED, REPAIR, LOST, DISPOSED
+  note         String?
+  assignments  AssetAssignment[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@map("asset")
+}
+
+model AssetAssignment {
+  id             String     @id @default(uuid()) @db.Uuid
+  assetId        String     @db.Uuid
+  asset          Asset      @relation(fields: [assetId], references: [id])
+  employmentId   String     @db.Uuid
+  employment     Employment @relation(fields: [employmentId], references: [id])
+  assignedAt     DateTime   @db.Date
+  returnedAt     DateTime?  @db.Date
+  conditionOut   String?
+  conditionIn    String?
+  note           String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([employmentId])
+  @@index([assetId])
+  @@map("asset_assignment")
 }
