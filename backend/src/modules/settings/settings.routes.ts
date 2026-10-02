@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { asyncHandler } from '../../common/utils/asyncHandler';
 import { requireRole } from '../../common/middleware/auth';
 import { env } from '../../config/env';
-import { sendMail } from '../../common/mailer';
+import { mailFrom, mailMode, sendMailOrThrow } from '../../common/mailer';
+import { AppError } from '../../common/errors/AppError';
 import {
   bracketsSchema,
   insuranceSchema,
@@ -51,7 +52,7 @@ router.get(
             cap: `${r.capMultiplier} × ${r.capBase === 'BASE_SALARY' ? 'lương cơ sở' : 'lương tối thiểu vùng'}`,
           })),
         },
-        mail: { configured: !!env.SMTP_HOST, host: env.SMTP_HOST ?? null, from: env.SMTP_FROM, appUrl: env.APP_URL },
+        mail: { configured: mailMode() !== 'log', mode: mailMode(), host: mailMode().startsWith('gmail') ? (env.GMAIL_SEND_VIA === 'api' ? 'Gmail API (HTTPS)' : 'smtp.gmail.com:465 (OAuth2)') : env.SMTP_HOST ?? null, from: mailFrom(), appUrl: env.APP_URL },
         /** IP của người đang xem (sau proxy) — để điền nhanh IP văn phòng. */
         clientIp: req.ip ?? null,
       },
@@ -120,8 +121,13 @@ router.post(
   '/test-email',
   asyncHandler(async (req, res) => {
     const { to } = z.object({ to: z.string().email('Email không hợp lệ') }).parse(req.body);
-    await sendMail(to, 'Email thử từ ATECH HRM', 'Nếu bạn nhận được email này, cấu hình gửi email của hệ thống đã hoạt động.');
-    res.json({ data: { sent: true, configured: !!env.SMTP_HOST } });
+    try {
+      const { mode } = await sendMailOrThrow(to, 'Email thử từ ATECH HRM', 'Nếu bạn nhận được email này, cấu hình gửi email của hệ thống đã hoạt động.');
+      res.json({ data: { sent: mode !== 'log', mode, configured: mode !== 'log' } });
+    } catch (e) {
+      // Báo đúng lỗi (sai refresh token, bị chặn cổng SMTP…) thay vì báo đã gửi.
+      throw new AppError(`Gửi thất bại: ${e instanceof Error ? e.message : String(e)}`, 502, 'MAIL_FAILED');
+    }
   }),
 );
 

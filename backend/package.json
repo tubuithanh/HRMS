@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "seed:demo": "tsx prisma/seed-demo.ts",
-    "reset:admin": "tsx prisma/reset-admin.ts"
+    "reset:admin": "tsx prisma/reset-admin.ts",
+    "gmail:token": "tsx scripts/gmail-token.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

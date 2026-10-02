@@ -261,6 +261,32 @@ Có migration mới thì chạy `npx prisma migrate deploy` (và `npm run seed` 
 | `violates RESTRICT setting of foreign key` khi `seed:demo` | Một lần seed khác còn chạy ngầm → `taskkill /F /IM node.exe` rồi chạy lại |
 | Admin đăng nhập sai mật khẩu | `npm run seed` chỉ đặt mật khẩu admin ở lần tạo đầu tiên |
 
+### Gửi email bằng Gmail OAuth2
+
+Không cần mật khẩu Gmail hay mật khẩu ứng dụng — dùng Client ID / Secret và refresh token do Google cấp.
+
+1. Vào https://console.cloud.google.com → tạo project (vd `atech-hrm`).
+2. *APIs & Services → Library* → bật **Gmail API**.
+3. *Google Auth Platform* (OAuth consent screen): đối tượng **External** (hoặc **Internal** nếu dùng Google Workspace),
+   điền tên ứng dụng, email hỗ trợ. Ở *Audience* bấm **Publish app** (chuyển sang *In production*) — để ở *Testing* thì
+   refresh token **hết hạn sau 7 ngày**. Ứng dụng chưa xác minh vẫn dùng được cho tài khoản của chính bạn
+   (màn hình cảnh báo → *Advanced* → *Go to …*).
+4. *Clients → Create client* → loại **Desktop app** → chép **Client ID** và **Client secret**.
+5. Trên máy: đặt `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` vào `backend/.env`, chạy
+   ```bash
+   cd backend
+   npm run gmail:token
+   ```
+   mở đường dẫn được in ra, đăng nhập bằng Gmail dùng để **gửi**, bấm *Cho phép* → chép refresh token.
+6. Đặt biến môi trường cho backend (`.env` và Render → Environment):
+   `GMAIL_USER` (địa chỉ Gmail đó), `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`.
+   Mặc định gửi qua `smtp.gmail.com:465`; nếu hosting chặn cổng SMTP (báo lỗi kết nối / timeout) đặt `GMAIL_SEND_VIA=api`
+   để gửi qua Gmail API bằng HTTPS.
+7. Kiểm tra: *Hệ thống → Cấu hình hệ thống → Gửi email → Gửi thử*. Lỗi (sai client, refresh token bị thu hồi…) được báo rõ.
+
+Giữ bí mật Client secret và refresh token (không commit, không gửi qua chat). Gmail cá nhân gửi tối đa khoảng 500 người nhận / ngày
+(Google Workspace khoảng 2.000). Thu hồi quyền: https://myaccount.google.com/permissions.
+
 ### Nhắc việc khi server ngủ
 
 Render gói miễn phí ngủ khi không có người dùng nên lịch trong server có thể lỡ 7:00. Để nhắc đúng giờ:

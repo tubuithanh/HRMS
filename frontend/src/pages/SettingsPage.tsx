@@ -22,7 +22,7 @@ interface SettingsData {
     pitBrackets: Array<{ from: string; to: string | null; rate: string }>;
     insurance: Array<{ type: string; employeeRate: string; companyRate: string; cap: string }>;
   };
-  mail: { configured: boolean; host: string | null; from: string; appUrl: string };
+  mail: { configured: boolean; mode: 'gmail-smtp' | 'gmail-api' | 'smtp' | 'log'; host: string | null; from: string; appUrl: string };
   clientIp: string | null;
 }
 
@@ -103,7 +103,7 @@ export default function SettingsPage() {
     setTestMsg(null);
     try {
       const res = await api.post('/settings/test-email', { to: testTo });
-      setTestMsg(res.data.data.configured ? `Đã gửi email thử tới ${testTo}. Hãy kiểm tra hộp thư.` : 'Chưa cấu hình SMTP: nội dung email đã được in ra log của server.');
+      setTestMsg(res.data.data.configured ? `✅ Đã gửi email thử tới ${testTo}. Hãy kiểm tra hộp thư (cả mục Spam).` : 'Chưa cấu hình gửi email: nội dung đã được in ra log của server.');
     } catch (err) {
       setTestMsg(errorMessage(err));
     }
@@ -223,7 +223,15 @@ export default function SettingsPage() {
           <Card title={<h2 className="h6 mb-0"><i className="bi bi-envelope me-2 text-primary" />Gửi email</h2>}>
             <dl className="kv small mb-3">
               <dt>Trạng thái</dt>
-              <dd>{data.mail.configured ? <span className="text-success">Đã cấu hình SMTP ({data.mail.host})</span> : <span className="text-warning-emphasis">Chưa cấu hình — email được in ra log server</span>}</dd>
+              <dd>
+                {data.mail.mode === 'log' ? (
+                  <span className="text-warning-emphasis">Chưa cấu hình — email được in ra log server</span>
+                ) : (
+                  <span className="text-success">
+                    {data.mail.mode === 'smtp' ? 'SMTP' : 'Gmail OAuth2'} · {data.mail.host}
+                  </span>
+                )}
+              </dd>
               <dt>Người gửi</dt>
               <dd>{data.mail.from}</dd>
               <dt>Địa chỉ web</dt>
@@ -235,7 +243,9 @@ export default function SettingsPage() {
             </form>
             {testMsg && <div className="small mt-2">{testMsg}</div>}
             <p className="small text-body-secondary mb-0 mt-2">
-              Máy chủ email cấu hình trong <code>backend/.env</code> (<code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>...) để mật khẩu email không lưu trong database.
+              Cấu hình trong biến môi trường của backend (không lưu trong database). <strong>Gmail OAuth2</strong> (khuyên dùng, không cần mật khẩu Gmail):{' '}
+              <code>GMAIL_USER</code>, <code>GMAIL_CLIENT_ID</code>, <code>GMAIL_CLIENT_SECRET</code>, <code>GMAIL_REFRESH_TOKEN</code> — lấy refresh token bằng{' '}
+              <code>npm run gmail:token</code>; nếu hosting chặn cổng SMTP đặt <code>GMAIL_SEND_VIA=api</code>. Hoặc SMTP thường: <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>.
             </p>
           </Card>
 

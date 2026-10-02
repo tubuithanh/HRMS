@@ -33,6 +33,13 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().default('ATECH HRM <no-reply@atech.local>'),
+  // Gmail OAuth2 (ưu tiên hơn SMTP thường khi đủ 4 biến). Lấy refresh token: npm run gmail:token
+  GMAIL_USER: z.string().email('GMAIL_USER phải là địa chỉ email').optional().or(z.literal('').transform(() => undefined)),
+  GMAIL_CLIENT_ID: z.string().optional().transform((v) => v || undefined),
+  GMAIL_CLIENT_SECRET: z.string().optional().transform((v) => v || undefined),
+  GMAIL_REFRESH_TOKEN: z.string().optional().transform((v) => v || undefined),
+  /** smtp (smtp.gmail.com:465, mặc định) hoặc api (Gmail API qua HTTPS — khi hosting chặn cổng SMTP). */
+  GMAIL_SEND_VIA: z.enum(['smtp', 'api']).default('smtp'),
 });
 
 const parsed = envSchema.safeParse(process.env);
