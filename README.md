@@ -117,6 +117,93 @@ npm install
 npm run dev                 # chạy ở http://localhost:5173
 ```
 
+## Triển khai online (Render + Neon, gói miễn phí)
+
+| Phần      | Nơi chạy                    | Địa chỉ                              |
+|-----------|-----------------------------|--------------------------------------|
+| Giao diện | Render – Web Service `HRMS` | https://hrms-lk4o.onrender.com       |
+| Backend   | Render – Web Service `hrms-api` | https://hrms-api-q4ue.onrender.com |
+| Database  | Neon PostgreSQL (us-east-2) | —                                    |
+
+Dùng Neon thay cho Postgres của Render vì Postgres miễn phí của Render bị xoá sau 30 ngày.
+
+### 1. Database (Neon)
+
+Tạo project trên neon.tech → **Connect** → **tắt Connection pooling** → chép chuỗi kết nối,
+bỏ `&channel_binding=require` ở cuối. Chuỗi đúng có dạng:
+
+```
+postgresql://neondb_owner:<mật-khẩu>@ep-xxxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+```
+
+Không dùng địa chỉ có `-pooler` (lệnh `prisma migrate` sẽ treo). **Không commit chuỗi này lên git.**
+
+Tạo bảng và nạp dữ liệu mẫu từ máy (PowerShell):
+
+```powershell
+cd backend
+npm install
+$env:DATABASE_URL="<chuỗi Neon>&connect_timeout=30"
+$env:SEED_ADMIN_PASSWORD="<mật khẩu admin, ≥ 8 ký tự>"
+$env:PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK="1"
+npx prisma migrate deploy
+npx prisma db execute --file prisma/migrations/manual_partial_unique_indexes.sql
+npm run seed
+npm run seed:demo -- --reset      # 5–15 phút, chỉ chạy ở MỘT terminal
+```
+
+### 2. Backend (Render → New → Web Service)
+
+| Mục            | Giá trị |
+|----------------|---------|
+| Root Directory | `backend` |
+| Build Command  | `npm install --include=dev && npx prisma generate && npm run build` |
+| Start Command  | `npm start` |
+| Region         | gần database (Neon us-east-2 → Ohio) |
+
+Biến môi trường: `DATABASE_URL` (chuỗi Neon), `NODE_ENV=production`, `JWT_SECRET`
+(tạo bằng `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`),
+`JWT_EXPIRES_IN=8h`, `CORS_ORIGINS` và `APP_URL` = địa chỉ giao diện.
+
+Kiểm tra: `https://<backend>/api/health` → `{"status":"ok","db":"connected"}`.
+
+### 3. Giao diện (Render → New → Web Service)
+
+| Mục            | Giá trị |
+|----------------|---------|
+| Root Directory | `frontend` |
+| Build Command  | `npm install && npm run build` |
+| Start Command  | `npm run preview` |
+
+Biến môi trường:
+- `VITE_API_URL` = `https://<backend>/api` (một lần `https://`, có `/api` ở cuối)
+- `VITE_SHOW_DEMO_ACCOUNTS` = `true` để hiện tài khoản dùng thử ở màn hình đăng nhập
+
+Biến `VITE_*` được gắn lúc build → đổi xong phải **Manual Deploy → Clear build cache & deploy**.
+`vite.config.ts` đã cho phép tên miền `*.onrender.com` và cổng `$PORT` của Render.
+
+### Cập nhật bản online
+
+Sửa code → commit → push lên GitHub → Render tự build lại (Auto-Deploy) hoặc bấm **Manual Deploy**.
+Đổi cấu trúc database (migration mới) thì chạy lại `npx prisma migrate deploy` với chuỗi Neon.
+
+### Lỗi thường gặp
+
+| Lỗi | Cách xử lý |
+|-----|------------|
+| `Blocked request. This host … is not allowed` | Thiếu `preview.allowedHosts` trong `vite.config.ts` |
+| Deploy giao diện chạy ~15 phút rồi Failed | `vite preview` không nghe ở `0.0.0.0:$PORT` (đã sửa trong `vite.config.ts`) |
+| `Failed to construct 'URL': Invalid URL` khi đăng nhập | `VITE_API_URL` sai dạng (thiếu hoặc thừa `https://`) |
+| `P1002 … advisory lock` khi migrate | Đặt `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1`, không dùng địa chỉ `-pooler` |
+| `violates RESTRICT setting of foreign key` khi `seed:demo` | Một lần seed khác còn chạy ngầm → `taskkill /F /IM node.exe` rồi chạy lại |
+| Admin đăng nhập sai mật khẩu | `npm run seed` chỉ đặt mật khẩu admin ở lần tạo đầu tiên |
+
+### Lưu ý gói miễn phí
+
+- Render "ngủ" sau ~15 phút không dùng; lần mở đầu chờ ~1 phút.
+- Khi bật `VITE_SHOW_DEMO_ACCOUNTS`, mật khẩu dùng thử hiện công khai — chỉ dùng cho demo.
+- Chỉ dùng dữ liệu giả (xem nguyên tắc 4 bên dưới).
+
 ## Nguyên tắc bắt buộc của dự án
 
 1. **Tính tiền phải dùng `Decimal`** (kiểu Decimal của Prisma, hoặc `decimal.js`).
