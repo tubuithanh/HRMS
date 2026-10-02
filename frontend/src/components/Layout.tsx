@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Role, roleLabels, useAuth } from '../auth';
 import { useFetch } from '../lib/hooks';
 import NotificationBell from './NotificationBell';
+import MobileNav from './MobileNav';
 
 interface NavItem {
   to: string;
@@ -203,6 +204,13 @@ export default function Layout() {
             </ul>
 
             <ul className="navbar-nav align-items-lg-center">
+              {user.scopeOrgs && user.scopeOrgs.length > 0 && (
+                <li className="nav-item me-lg-2">
+                  <span className="badge text-bg-warning" title="Bạn chỉ thấy nhân viên thuộc các đơn vị này (và đơn vị con)">
+                    <i className="bi bi-funnel me-1" />Phạm vi: {user.scopeOrgs.map((o) => o.name).join(', ')}
+                  </span>
+                </li>
+              )}
               <NotificationBell />
               <Dropdown
                 align="end"
@@ -239,9 +247,10 @@ export default function Layout() {
         </div>
       </nav>
 
-      <main className="flex-grow-1 container-fluid px-3 px-lg-4 py-4">
+      <main className="flex-grow-1 container-fluid px-3 px-lg-4 py-3 py-lg-4 has-mobile-nav">
         <Outlet />
       </main>
+      {user.personId && <MobileNav tasks={tasks.data?.length ?? 0} />}
     </div>
   );
 }

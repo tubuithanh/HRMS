@@ -59,7 +59,17 @@ export default function MyAttendancePage() {
             Vào: <strong>{time(t?.checkIn)}</strong> · Ra: <strong>{time(t?.checkOut)}</strong>
             {t && <> · {labels.attendance[t.status]}</>}
           </p>
-          <div className="toolbar">
+          {/* Điện thoại: một nút tròn lớn theo bước tiếp theo; màn hình lớn: hai nút. */}
+          <div className="d-lg-none text-center my-3">
+            {!t?.checkIn ? (
+              <ActionButton label={<><i className="bi bi-box-arrow-in-right" />Chấm công vào</>} className="btn btn-primary punch-btn" run={() => punch('check-in')} success="Đã chấm công vào" onDone={reload} />
+            ) : !t.checkOut ? (
+              <ActionButton label={<><i className="bi bi-box-arrow-right" />Chấm công ra</>} className="btn btn-success punch-btn" run={() => punch('check-out')} success="Đã chấm công ra" onDone={reload} />
+            ) : (
+              <div className="punch-btn btn btn-light border disabled"><i className="bi bi-check2-circle text-success" />Đã xong hôm nay</div>
+            )}
+          </div>
+          <div className="toolbar d-none d-lg-flex">
             <ActionButton label="Chấm công vào" className="btn btn-primary" disabled={!!t?.checkIn} run={() => punch('check-in')} success="Đã chấm công vào" onDone={reload} />
             <ActionButton label="Chấm công ra" className="btn btn-outline-secondary" disabled={!t?.checkIn || !!t?.checkOut} run={() => punch('check-out')} success="Đã chấm công ra" onDone={reload} />
           </div>

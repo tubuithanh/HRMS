@@ -253,6 +253,7 @@ export interface JobApplication {
 }
 
 export interface UserAccount {
+  orgScope?: string[];
   id: string;
   username: string;
   role: 'ADMIN' | 'HR' | 'ACCOUNTANT' | 'EMPLOYEE';

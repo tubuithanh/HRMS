@@ -5,10 +5,15 @@ import { todayDate } from '../../common/utils/dates';
 import { AuthUser } from '../auth/token';
 import { computeManagers } from './manager.logic';
 import { getSettings } from '../settings/settings.service';
+import { withoutScope } from '../../common/scope/scope';
 import { events, leaveSummary, overtimeSummary } from '../notification/events';
 
 /** Bản đồ nhân viên → quản lý trực tiếp, tính trên toàn bộ tổ chức hiện tại. */
 export async function loadManagerMap() {
+  return withoutScope(loadManagerMapAll);
+}
+
+async function loadManagerMapAll() {
   const [orgs, assignments] = await Promise.all([
     prisma.orgStructure.findMany({ where: { isDelete: false }, select: { id: true, parentId: true } }),
     prisma.assignment.findMany({

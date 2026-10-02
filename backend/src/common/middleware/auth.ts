@@ -1,7 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
 import { Role } from '@prisma/client';
 import { AppError } from '../errors/AppError';
-import { prisma } from '../../config/prisma';
+import { basePrisma, prisma } from '../../config/prisma';
+import { computeScope, setRequestScope } from '../scope/scope';
 import { setAuditUser } from '../audit/audit';
 import { AuthUser, verifyToken } from '../../modules/auth/token';
 
@@ -64,6 +65,13 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
         personId: user.personId,
       };
       setAuditUser(user.id, user.username);
+      // Phạm vi dữ liệu theo đơn vị (quản trị luôn thấy tất cả).
+      if (user.role !== 'ADMIN' && user.orgScope.length > 0) {
+        return computeScope(basePrisma, user).then((scope) => {
+          setRequestScope(scope);
+          next();
+        });
+      }
       next();
     })
     .catch(next);

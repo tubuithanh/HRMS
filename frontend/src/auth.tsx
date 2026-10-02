@@ -18,6 +18,9 @@ export interface CurrentUser {
   lastLoginAt: string | null;
   mustChangePassword: boolean;
   person?: { id: string; personCode: string; fullName: string } | null;
+  /** Phạm vi dữ liệu (đơn vị) — rỗng = toàn công ty. */
+  orgScope?: string[];
+  scopeOrgs?: Array<{ id: string; name: string }>;
 }
 
 interface AuthState {

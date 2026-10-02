@@ -173,7 +173,7 @@ export function DataTable<T>(props: {
   }
   return (
     <div className="table-responsive">
-      <table className="table table-hover align-middle mb-0">
+      <table className="table table-hover align-middle mb-0 table-stack">
         <thead className="table-light">
           <tr>
             {props.columns.map((c, i) => (
@@ -187,7 +187,7 @@ export function DataTable<T>(props: {
           {props.rows.map((r) => (
             <tr key={props.rowKey(r)}>
               {props.columns.map((c, i) => (
-                <td key={i} className={c.className}>
+                <td key={i} className={c.className} data-label={typeof c.header === 'string' ? c.header : undefined}>
                   {c.cell(r)}
                 </td>
               ))}

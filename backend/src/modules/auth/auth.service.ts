@@ -1,3 +1,4 @@
+import { clearScopeCache } from '../../common/scope/scope';
 import { createHash, randomBytes } from 'crypto';
 import { Prisma, User } from '@prisma/client';
 import { prisma } from '../../config/prisma';
@@ -107,7 +108,10 @@ export const authService = {
       include: { person: personSummary },
     });
     if (!user) throw new NotFoundError();
-    return toPublic(user);
+    const scopeOrgs = user.orgScope.length
+      ? await prisma.orgStructure.findMany({ where: { id: { in: user.orgScope } }, select: { id: true, name: true } })
+      : [];
+    return { ...toPublic(user), scopeOrgs };
   },
 
   /** Tự đổi mật khẩu. Trả về token mới vì các phiên cũ bị vô hiệu. */
@@ -221,6 +225,11 @@ export const authService = {
         input.isActive === false);
     if (losesAdmin) await assertNotLastAdmin(id);
     if (input.personId) await assertPersonExists(input.personId);
+    if (input.orgScope?.length) {
+      const n = await prisma.orgStructure.count({ where: { id: { in: input.orgScope }, isDelete: false } });
+      if (n !== new Set(input.orgScope).size) throw new AppError('Có đơn vị không tồn tại', 422, 'VALIDATION_ERROR');
+    }
+    clearScopeCache(id);
     try {
       return toPublic(await prisma.user.update({ where: { id }, data: input }));
     } catch (e) {

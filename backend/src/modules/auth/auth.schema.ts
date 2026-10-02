@@ -34,6 +34,8 @@ export const updateUserSchema = z.object({
   role: role.optional(),
   personId: z.string().uuid().nullable().optional(),
   isActive: z.boolean().optional(),
+  /** Phạm vi dữ liệu: danh sách đơn vị; rỗng = toàn công ty. */
+  orgScope: z.array(z.string().uuid()).max(50).optional(),
 });
 
 export const resetPasswordSchema = z.object({ newPassword: password });

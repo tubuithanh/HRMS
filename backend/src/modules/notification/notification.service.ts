@@ -2,6 +2,7 @@ import { Role } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { sendMail } from '../../common/mailer';
 import { AuthUser } from '../auth/token';
+import { withoutScope } from '../../common/scope/scope';
 
 /**
  * Thông báo trong ứng dụng (chuông trên thanh menu), kèm email nếu người nhận có email
@@ -39,7 +40,7 @@ async function deliver(userIds: string[], n: NoticeInput) {
 function safe<A extends unknown[]>(fn: (...a: A) => Promise<void>) {
   return async (...a: A) => {
     try {
-      await fn(...a);
+      await withoutScope(() => fn(...a));
     } catch (e) {
       console.error('Gửi thông báo thất bại:', e instanceof Error ? e.message : e);
     }

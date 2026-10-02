@@ -3,6 +3,7 @@ import { sendMail } from '../../common/mailer';
 import { addDays, formatDate, todayDate } from '../../common/utils/dates';
 import { loadManagerMap } from '../approval/approval.service';
 import { OWNERS } from '../checklist/checklist.service';
+import { withoutScope } from '../../common/scope/scope';
 
 /**
  * NHẮC VIỆC HẰNG NGÀY — chạy một lần mỗi ngày (sau 7:00 giờ Việt Nam):
@@ -179,7 +180,7 @@ let running: Promise<unknown> | null = null;
  */
 export async function runDailyJobs(opts: { force?: boolean; now?: Date } = {}) {
   if (running) return running;
-  running = (async () => {
+  running = withoutScope(async () => {
     const now = opts.now ?? new Date();
     const today = todayDate(now);
     const key = formatDate(today);
@@ -202,7 +203,7 @@ export async function runDailyJobs(opts: { force?: boolean; now?: Date } = {}) {
     await prisma.systemSetting.upsert({ where: { key: STATE_KEY }, update: { value: { lastDailyRun: key, lastSummary: summary } }, create: { key: STATE_KEY, value: { lastDailyRun: key, lastSummary: summary } } });
     console.log(`⏰ Nhắc việc ${key}: ${summary.created} thông báo mới cho ${summary.users} người, ${emails} email`);
     return { skipped: false, ...summary };
-  })();
+  });
   try {
     return await running;
   } finally {

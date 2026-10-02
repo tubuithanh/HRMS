@@ -141,6 +141,13 @@ hồ sơ nhân sự thì mới dùng được phần này.
 - **Gợi ý làm thêm giờ từ chấm công:** ngày ở lại sau giờ ca từ 60 phút, đi làm thứ 7 / chủ nhật / lễ mà chưa có đơn → gợi ý số giờ
   (làm tròn xuống 0,5) để tạo đơn; vẫn phải duyệt như đơn thường.
 - **Tuyển dụng:** tin tuyển dụng, ứng viên theo vòng, nhận việc → tạo hồ sơ nhân sự.
+- **Phạm vi dữ liệu theo đơn vị** (Hệ thống → Tài khoản → *Phạm vi*): tài khoản nhân sự / kế toán được gán đơn vị chỉ thấy và thao tác
+  với nhân viên có vị trí chính thuộc các đơn vị đó (kể cả đơn vị con) — hồ sơ, chấm công, nghỉ phép, lương, báo cáo, dashboard…
+  Không gán = toàn công ty; quản trị luôn thấy tất cả. Áp tập trung ở tầng Prisma (`common/scope/scope.ts`) nên mọi API đều tuân theo;
+  nhân viên mới chưa gán vị trí thì mọi nhân sự đều thấy. Thanh menu hiện nhãn *Phạm vi* để người dùng biết đang xem một phần dữ liệu.
+- **Dùng trên điện thoại:** thanh điều hướng dưới đáy (chấm công, nghỉ phép, phiếu lương / duyệt, việc cần làm, hồ sơ), bảng tự chuyển
+  thành dạng thẻ trên màn hình hẹp, nút chấm công lớn. Cài như ứng dụng (PWA): mở trang bằng Chrome / Safari → *Thêm vào màn hình chính*;
+  ứng dụng mở thẳng trang Chấm công, không lưu dữ liệu nhân sự ngoại tuyến.
 - **Nhập / xuất Excel:** nhân viên mới, điều chỉnh lương, chấm công theo file mẫu; kiểm tra từng dòng,
   chỉ nhập khi không còn lỗi (tất cả hoặc không dòng nào). Xuất danh sách nhân sự.
 - **Nhật ký thao tác** (ADMIN): mọi thao tác ghi dữ liệu, thay đổi trước/sau trên các bảng quan trọng

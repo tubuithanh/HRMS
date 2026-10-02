@@ -115,3 +115,41 @@ dl.kv dd { margin: 0; }
 .todo-pill { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.8rem; border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius-lg); background: var(--bs-body-bg); color: var(--bs-body-color); text-decoration: none; height: 100%; }
 .todo-pill:hover { border-color: var(--bs-primary); color: var(--bs-body-color); }
 .todo-pill .count { font-size: 1.25rem; font-weight: 700; margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* ===== Điện thoại ===== */
+.mobile-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 1030;
+  display: flex; justify-content: space-around;
+  padding: 0.25rem 0 calc(0.25rem + env(safe-area-inset-bottom));
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+}
+.mobile-nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 0.3rem 0; color: var(--bs-secondary-color); text-decoration: none; font-size: 0.7rem;
+}
+.mobile-nav-item .bi { font-size: 1.35rem; line-height: 1; }
+.mobile-nav-item .badge { font-size: 0.6rem; }
+.mobile-nav-item.active { color: var(--bs-primary); font-weight: 600; }
+@media (max-width: 991.98px) {
+  .has-mobile-nav { padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important; }
+}
+
+/* Bảng → thẻ trên màn hình hẹp: mỗi dòng một thẻ, mỗi ô "nhãn: giá trị". */
+@media (max-width: 575.98px) {
+  .table-stack thead { display: none; }
+  .table-stack, .table-stack tbody, .table-stack tr, .table-stack td { display: block; width: 100%; }
+  .table-stack tr { border-bottom: 1px solid var(--bs-border-color); padding: 0.5rem 0.75rem; }
+  .table-stack td { border: 0 !important; padding: 0.15rem 0 !important; text-align: left !important; }
+  .table-stack td[data-label]:not([data-label=""])::before {
+    content: attr(data-label); display: inline-block; min-width: 42%; color: var(--bs-secondary-color); font-size: 0.8rem; padding-right: 0.5rem;
+  }
+  .table-stack td.actions { padding-top: 0.4rem !important; }
+  .table-stack td.actions > * { justify-content: flex-start !important; }
+  /* Thanh công cụ trong thẻ / tiêu đề trang xuống dòng gọn */
+  .card-header .toolbar, .toolbar { flex-wrap: wrap; }
+  h1.h3 { font-size: 1.35rem; }
+}
+
+/* Nút chấm công lớn */
+.punch-btn { width: 9.5rem; height: 9.5rem; border-radius: 50%; font-size: 1.05rem; font-weight: 600; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.35rem; box-shadow: var(--bs-box-shadow); }
+.punch-btn .bi { font-size: 2.2rem; }

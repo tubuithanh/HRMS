@@ -4,16 +4,20 @@ import { roleLabels, useAuth } from '../auth';
 import { ActionButton, Badge, Card, DataTable, ErrorBox, FieldDef, FormModal, PageHeader } from '../components/ui';
 import { useFetch } from '../lib/hooks';
 import { dateTime, options } from '../lib/format';
-import { Person, UserAccount } from '../types/models';
+import { OrgUnit, Person, UserAccount } from '../types/models';
+import { Modal, useToast } from '../components/ui';
+import { errorMessage } from '../api/client';
 import { PASSWORD_RULE } from './ChangePasswordPage';
 
-type Dialog = 'create' | { edit: UserAccount } | { reset: UserAccount } | null;
+type Dialog = 'create' | { edit: UserAccount } | { reset: UserAccount } | { scope: UserAccount } | null;
 
 export default function UsersPage() {
   const { user: me } = useAuth();
   const [dialog, setDialog] = useState<Dialog>(null);
   const { data, error, loading, reload } = useFetch<UserAccount[]>('/auth/users');
   const persons = useFetch<Person[]>('/corehr/persons');
+  const orgs = useFetch<OrgUnit[]>('/corehr/org');
+  const orgName = (id: string) => orgs.data?.find((o) => o.id === id)?.name ?? '…';
 
   const personOptions = (persons.data ?? []).map((p) => ({ value: p.id, label: `${p.personCode} · ${p.fullName}` }));
   const roleOptions = options(roleLabels);
@@ -50,6 +54,17 @@ export default function UsersPage() {
             { header: 'Tên đăng nhập', cell: (u) => <strong>{u.username}</strong> },
             { header: 'Vai trò', cell: (u) => <Badge tone={u.role === 'ADMIN' ? 'blue' : undefined}>{roleLabels[u.role]}</Badge> },
             { header: 'Nhân sự', cell: (u) => (u.person ? `${u.person.personCode} · ${u.person.fullName}` : <span className="muted">Chưa gắn</span>) },
+            {
+              header: 'Phạm vi dữ liệu',
+              cell: (u) =>
+                u.role === 'ADMIN' || u.role === 'EMPLOYEE' ? (
+                  <span className="text-body-tertiary">—</span>
+                ) : u.orgScope?.length ? (
+                  <span className="small">{u.orgScope.map(orgName).join(', ')}</span>
+                ) : (
+                  <span className="small text-body-secondary">Toàn công ty</span>
+                ),
+            },
             { header: 'Đăng nhập gần nhất', cell: (u) => dateTime(u.lastLoginAt), className: 'nowrap' },
             {
               header: 'Trạng thái',
@@ -70,6 +85,9 @@ export default function UsersPage() {
               cell: (u) => (
                 <span className="toolbar" style={{ justifyContent: 'flex-end' }}>
                   <button className="btn btn-sm btn-outline-secondary" onClick={() => setDialog({ edit: u })}>Sửa</button>
+                  {(u.role === 'HR' || u.role === 'ACCOUNTANT') && (
+                    <button className="btn btn-sm btn-outline-secondary" onClick={() => setDialog({ scope: u })}>Phạm vi</button>
+                  )}
                   <button className="btn btn-sm btn-outline-secondary" onClick={() => setDialog({ reset: u })}>Đặt lại MK</button>
                   {u.lockedUntil && new Date(u.lockedUntil) > new Date() && (
                     <ActionButton label="Mở khoá" run={() => api.post(`/auth/users/${u.id}/unlock`)} success="Đã mở khoá" onDone={reload} />
@@ -91,6 +109,9 @@ export default function UsersPage() {
         />
       </Card>
 
+      {dialog && typeof dialog === 'object' && 'scope' in dialog && (
+        <ScopeModal user={dialog.scope} orgs={orgs.data ?? []} onClose={() => setDialog(null)} onDone={done} />
+      )}
       {dialog === 'create' && (
         <FormModal title="Tạo tài khoản" fields={createFields} initial={{ role: 'EMPLOYEE', mustChangePassword: true }} path="/auth/users" successMessage="Đã tạo tài khoản" onClose={() => setDialog(null)} onSaved={done} />
       )}
@@ -112,5 +133,64 @@ export default function UsersPage() {
         </FormModal>
       )}
     </>
+  );
+}
+
+/** Chọn đơn vị cho phạm vi dữ liệu của một tài khoản nhân sự / kế toán. */
+function ScopeModal(props: { user: UserAccount; orgs: OrgUnit[]; onClose: () => void; onDone: () => void }) {
+  const [sel, setSel] = useState<Set<string>>(new Set(props.user.orgScope ?? []));
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  // Hiển thị dạng cây: sắp theo cha → con
+  const byParent = new Map<string | null, OrgUnit[]>();
+  for (const o of props.orgs) byParent.set(o.parentId, [...(byParent.get(o.parentId) ?? []), o]);
+  const ids = new Set(props.orgs.map((o) => o.id));
+  const roots = props.orgs.filter((o) => !o.parentId || !ids.has(o.parentId));
+  const rows: Array<{ o: OrgUnit; depth: number }> = [];
+  const walk = (o: OrgUnit, depth: number) => {
+    rows.push({ o, depth });
+    for (const c of (byParent.get(o.id) ?? []).sort((a, b) => a.name.localeCompare(b.name))) walk(c, depth + 1);
+  };
+  roots.forEach((r) => walk(r, 0));
+  const toggle = (id: string) => {
+    const n = new Set(sel);
+    n.has(id) ? n.delete(id) : n.add(id);
+    setSel(n);
+  };
+  async function save() {
+    setBusy(true);
+    try {
+      await api.patch(`/auth/users/${props.user.id}`, { orgScope: [...sel] });
+      toast(sel.size ? `Đã giới hạn ${props.user.username} trong ${sel.size} đơn vị` : `${props.user.username} xem được toàn công ty`);
+      props.onDone();
+    } catch (e) {
+      setError(errorMessage(e));
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={`Phạm vi dữ liệu: ${props.user.username}`} onClose={props.onClose} width={640}>
+      <ErrorBox error={error} />
+      <p className="small text-body-secondary mt-0">
+        Chọn đơn vị: tài khoản chỉ thấy và thao tác với nhân viên có vị trí chính thuộc các đơn vị này (kể cả đơn vị con) — hồ sơ, chấm công,
+        nghỉ phép, lương, báo cáo, dashboard… Không chọn gì = toàn công ty. Nhân viên mới chưa gán vị trí thì mọi nhân sự đều thấy.
+      </p>
+      <div className="border rounded" style={{ maxHeight: 380, overflowY: 'auto' }}>
+        {rows.map(({ o, depth }) => (
+          <label key={o.id} className="d-flex align-items-center gap-2 px-2 py-1 border-bottom small" style={{ paddingLeft: 8 + depth * 18, cursor: 'pointer' }}>
+            <input type="checkbox" className="form-check-input mt-0" checked={sel.has(o.id)} onChange={() => toggle(o.id)} />
+            <span className={depth === 0 ? 'fw-semibold' : ''}>{o.name}</span>
+          </label>
+        ))}
+      </div>
+      <div className="d-flex justify-content-between align-items-center mt-3">
+        <button className="btn btn-link px-0" onClick={() => setSel(new Set())}>Bỏ chọn (toàn công ty)</button>
+        <div className="d-flex gap-2">
+          <button className="btn btn-outline-secondary" onClick={props.onClose}>Huỷ</button>
+          <button className="btn btn-primary" disabled={busy} onClick={save}>Lưu</button>
+        </div>
+      </div>
+    </Modal>
   );
 }

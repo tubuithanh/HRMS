@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { env } from './env';
 import { auditExtension, setAuditClient } from '../common/audit/audit';
+import { scopeExtension } from '../common/scope/scope';
 
 /**
  * Một instance PrismaClient dùng chung cho toàn ứng dụng.
@@ -16,7 +17,11 @@ const base = new PrismaClient({
 // Client gốc dùng để ghi nhật ký; client dùng trong ứng dụng có gắn extension
 // ghi lại thay đổi dữ liệu (xem common/audit/audit.ts).
 setAuditClient(base);
-export const prisma = base.$extends(auditExtension(base));
+// + phạm vi dữ liệu theo đơn vị cho tài khoản nhân sự / kế toán bị giới hạn (common/scope/scope.ts).
+export const prisma = base.$extends(auditExtension(base)).$extends(scopeExtension(base));
+
+/** Client gốc (không audit, không phạm vi) — chỉ dùng cho tính phạm vi. */
+export const basePrisma = base;
 
 /** Kiểu client bên trong prisma.$transaction(async (tx) => ...) — dùng thay Prisma.TransactionClient. */
 export type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];

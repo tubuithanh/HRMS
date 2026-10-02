@@ -12,6 +12,11 @@ const applyTheme = () =>
 applyTheme();
 dark.addEventListener('change', applyTheme);
 
+// Cài lên màn hình chính (PWA) — chỉ bản build, tránh làm phiền khi phát triển.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => undefined));
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
