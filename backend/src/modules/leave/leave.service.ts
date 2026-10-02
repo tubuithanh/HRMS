@@ -1,3 +1,4 @@
+import { getSettings } from '../settings/settings.service';
 import Decimal from 'decimal.js';
 import { LeaveStatus, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
@@ -55,6 +56,7 @@ type EmploymentRow = { dateHire: Date; dateSeniority: Date | null; dateTerminate
 async function entitlementOf(employmentId: string, emp: EmploymentRow, t: LeaveTypeRow, year: number, until?: Date | null) {
   const daysPerYear = num(t.daysPerYear);
   if (daysPerYear === null) return null;
+  const rules = (await getSettings()).laborRules;
   const calc = (y: number, u?: Date | null) =>
     annualEntitlement({
       daysPerYear,
@@ -63,6 +65,8 @@ async function entitlementOf(employmentId: string, emp: EmploymentRow, t: LeaveT
       dateHire: emp.dateHire,
       until: u ?? emp.dateTerminate,
       year: y,
+      seniorityStepYears: rules.seniorityStepYears,
+      seniorityBonusDays: rules.seniorityBonusDays,
     });
   const entitled = emp.dateHire.getUTCFullYear() > year ? 0 : calc(year, until);
 
@@ -257,6 +261,15 @@ export const leaveService = {
     // Không tự duyệt đơn của mình (trừ ADMIN).
     if (reviewer.role !== 'ADMIN' && reviewer.personId === req.employment.personId) {
       throw new ForbiddenError('Không thể tự duyệt đơn nghỉ của chính mình');
+    }
+    // Không duyệt đơn có ngày nghỉ rơi vào kỳ lương đã khoá (bảng công kỳ đó đã chốt).
+    const locked = approve
+      ? await prisma.payPeriod.findFirst({
+          where: { status: { in: ['LOCKED', 'PAID'] }, dateStart: { lte: req.toDate }, dateEnd: { gte: req.fromDate } },
+        })
+      : null;
+    if (locked) {
+      throw new AppError(`Kỳ lương ${locked.code} đã khoá, không thể duyệt đơn nghỉ có ngày thuộc kỳ này`, 409, 'PERIOD_LOCKED');
     }
     const updated = await prisma.leaveRequest.update({
       where: { id },

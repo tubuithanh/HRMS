@@ -1,3 +1,4 @@
+import { getSettings } from '../settings/settings.service';
 import Decimal from 'decimal.js';
 import ExcelJS from 'exceljs';
 import { z } from 'zod';
@@ -11,11 +12,11 @@ import { loadLegalParams } from '../payroll/legal.service';
 import { getCompany } from '../settings/settings.service';
 import { notify } from '../notification/notification.service';
 import {
+  birthMonths,
   calcClaim,
   childSickDaysPerYear,
   miscarriageDays,
   paternityMaxDays,
-  RECOVERY_MAX_DAYS,
   Regime,
   REGIME_LABEL,
   sickDaysPerYear,
@@ -106,12 +107,14 @@ export const insuranceService = {
     if (!emp) throw new NotFoundError('Không tìm thấy hợp đồng lao động');
     const regime = input.regime as Regime;
     const warnings: string[] = [];
+    const sys = await getSettings();
+    const rules = sys.laborRules;
 
     // Khoảng ngày
     let toDate = input.toDate ?? input.fromDate;
     const childCount = input.childCount ?? 1;
-    if (regime === 'BIRTH') toDate = addDays(addMonthsUTC(input.fromDate, 6 + Math.max(0, childCount - 1)), -1);
-    if (regime === 'MISCARRIAGE') toDate = addDays(input.fromDate, miscarriageDays(input.pregnancyWeeks!) - 1);
+    if (regime === 'BIRTH') toDate = addDays(addMonthsUTC(input.fromDate, Math.ceil(birthMonths(childCount, rules))), -1);
+    if (regime === 'MISCARRIAGE') toDate = addDays(input.fromDate, miscarriageDays(input.pregnancyWeeks!, rules) - 1);
     const holidays = await holidaySet(input.fromDate, toDate);
     const calendarDays = Math.round((toDate.getTime() - input.fromDate.getTime()) / 86_400_000) + 1;
     const workingDays = calcLeaveDays(input.fromDate, toDate, false, holidays).toNumber();
@@ -129,25 +132,25 @@ export const insuranceService = {
     let limit: number | null = null;
     let used = 0;
     if (regime === 'SICK') {
-      limit = sickDaysPerYear(insuredYears, hazardous);
+      limit = sickDaysPerYear(insuredYears, hazardous, rules);
       const prev = await prisma.insuranceClaim.findMany({ where: { employmentId: emp.id, regime: 'SICK', status: { not: 'REJECTED' }, fromDate: yearRange, ...(excludeId ? { id: { not: excludeId } } : {}) } });
       used = prev.reduce((n, c) => n + Number(c.days), 0);
     } else if (regime === 'CHILD_SICK') {
-      limit = childSickDaysPerYear(input.childBirthDate!, input.fromDate);
+      limit = childSickDaysPerYear(input.childBirthDate!, input.fromDate, rules);
       if (limit === 0) throw new ValidationError('Con từ đủ 7 tuổi không thuộc chế độ chăm con ốm');
       const prev = await prisma.insuranceClaim.findMany({
         where: { employmentId: emp.id, regime: 'CHILD_SICK', childBirthDate: input.childBirthDate, status: { not: 'REJECTED' }, fromDate: yearRange, ...(excludeId ? { id: { not: excludeId } } : {}) },
       });
       used = prev.reduce((n, c) => n + Number(c.days), 0);
     } else if (regime === 'PATERNITY') {
-      limit = paternityMaxDays(childCount, !!input.surgery);
-      const deadline = addDays(input.childBirthDate!, 60);
-      if (toDate > deadline) warnings.push(`Phải nghỉ trong 60 ngày kể từ ngày vợ sinh (đến ${formatDate(deadline)})`);
+      limit = paternityMaxDays(childCount, !!input.surgery, rules);
+      const deadline = addDays(input.childBirthDate!, rules.paternityWithinDays);
+      if (toDate > deadline) warnings.push(`Phải nghỉ trong ${rules.paternityWithinDays} ngày kể từ ngày vợ sinh (đến ${formatDate(deadline)})`);
     } else if (regime === 'CHECKUP') {
-      limit = 2;
-      if (days > 2) warnings.push('Mỗi lần khám thai tối đa 1 ngày (2 ngày nếu xa cơ sở y tế hoặc thai bệnh lý)');
+      limit = rules.checkupMaxDays;
+      if (days > rules.checkupMaxDays) warnings.push(`Mỗi lần khám thai tối đa ${rules.checkupMaxDays} ngày`);
     } else if (regime === 'RECOVERY') {
-      limit = RECOVERY_MAX_DAYS;
+      limit = sys.benefits.recoveryMaxDays;
     }
     if (limit !== null && days > limit - used) {
       if (regime === 'SICK' || regime === 'CHILD_SICK') {
@@ -174,7 +177,7 @@ export const insuranceService = {
     const bases = await salaryBases(emp.id, input.fromDate);
     if (!bases.fromPayroll) warnings.push('Chưa có bảng lương trước ngày nghỉ — tạm tính theo lương đóng BH trên hợp đồng');
     const legal = await loadLegalParams(input.fromDate);
-    const r = calcClaim({ regime, days, lastMonthSalary: bases.last, avg6Salary: bases.avg6, baseSalary: legal.baseSalary, childCount });
+    const r = calcClaim({ regime, days, lastMonthSalary: bases.last, avg6Salary: bases.avg6, baseSalary: legal.baseSalary, childCount, rules });
 
     return {
       employee: { id: emp.id, codeEmp: emp.codeEmp, fullName: emp.person.fullName },

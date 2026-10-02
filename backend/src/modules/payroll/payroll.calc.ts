@@ -32,6 +32,10 @@ export interface PayrollInput {
   otherDeductions?: Decimal.Value;
   /** Tham số pháp lý đang hiệu lực của kỳ; mặc định hằng số 2026. */
   legal?: LegalParams;
+  /** Trần khấu trừ khác, % lương thực trả (Cấu hình hệ thống), mặc định 30. */
+  deductionCapPercent?: number;
+  /** Ngưỡng khấu trừ thuế 10% (Cấu hình hệ thống), mặc định 2.000.000đ. */
+  flat10Threshold?: number;
 }
 
 export interface PayrollResultData {
@@ -92,7 +96,7 @@ export function calcPayroll(input: PayrollInput): PayrollResultData {
     if (assessableIncome.lessThan(0)) assessableIncome = new Decimal(0);
     pitAmount = calcProgressivePIT(assessableIncome, legal.pitBrackets);
   } else if (input.taxMethod === 'FLAT_10') {
-    pitAmount = calcFlat10(taxableIncome);
+    pitAmount = calcFlat10(taxableIncome, input.flat10Threshold);
   } else {
     pitAmount = calcFlat20(taxableIncome);
   }
@@ -106,6 +110,7 @@ export function calcPayroll(input: PayrollInput): PayrollResultData {
   const cap = capDeduction(
     input.otherDeductions ?? 0,
     netBeforeOtherDeductions,
+    input.deductionCapPercent,
   );
 
   // 7. Thực lĩnh cuối cùng

@@ -31,10 +31,10 @@ export interface SeveranceEligibility {
   reason: string | null;
 }
 
-export function severanceEligibility(type: TerminationType, totalWorkedMonths: number): SeveranceEligibility {
+export function severanceEligibility(type: TerminationType, totalWorkedMonths: number, minMonths = 12): SeveranceEligibility {
   if (type === 'DISMISS') return { eligible: false, isRedundancy: false, reason: 'Bị sa thải không được hưởng trợ cấp thôi việc' };
   if (type === 'RETIRE') return { eligible: false, isRedundancy: false, reason: 'Đủ điều kiện hưởng lương hưu không được hưởng trợ cấp thôi việc' };
-  if (totalWorkedMonths < 12) return { eligible: false, isRedundancy: false, reason: 'Làm việc chưa đủ 12 tháng' };
+  if (totalWorkedMonths < minMonths) return { eligible: false, isRedundancy: false, reason: `Làm việc chưa đủ ${minMonths} tháng` };
   return { eligible: true, isRedundancy: type === 'REDUNDANCY', reason: null };
 }
 

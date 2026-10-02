@@ -27,12 +27,40 @@ export function overtimeTypeOf(date: Date, holidays: Set<string>): OvertimeType 
   return 'WEEKDAY';
 }
 
-export function multiplierOf(type: OvertimeType, isNight: boolean): Decimal {
-  return new Decimal(isNight ? MULTIPLIER[type].night : MULTIPLIER[type].day);
+/** Tham số làm thêm giờ (Cấu hình hệ thống → Làm thêm giờ). Mặc định = mức luật định. */
+export interface OvertimeConfig {
+  weekdayMaxHours: number;
+  restDayMaxHours: number;
+  monthlyLimitHours: number;
+  weekday: number;
+  weekend: number;
+  holiday: number;
+  weekdayNight: number;
+  weekendNight: number;
+  holidayNight: number;
 }
 
-export function maxHoursPerDay(type: OvertimeType): number {
-  return type === 'WEEKDAY' ? NORMAL_HOURS_PER_DAY / 2 : 12;
+export const DEFAULT_OVERTIME: OvertimeConfig = {
+  weekdayMaxHours: NORMAL_HOURS_PER_DAY / 2,
+  restDayMaxHours: 12,
+  monthlyLimitHours: MONTHLY_LIMIT_HOURS,
+  weekday: Number(MULTIPLIER.WEEKDAY.day),
+  weekend: Number(MULTIPLIER.WEEKEND.day),
+  holiday: Number(MULTIPLIER.HOLIDAY.day),
+  weekdayNight: Number(MULTIPLIER.WEEKDAY.night),
+  weekendNight: Number(MULTIPLIER.WEEKEND.night),
+  holidayNight: Number(MULTIPLIER.HOLIDAY.night),
+};
+
+const KEY: Record<OvertimeType, 'weekday' | 'weekend' | 'holiday'> = { WEEKDAY: 'weekday', WEEKEND: 'weekend', HOLIDAY: 'holiday' };
+
+export function multiplierOf(type: OvertimeType, isNight: boolean, cfg: OvertimeConfig = DEFAULT_OVERTIME): Decimal {
+  const k = KEY[type];
+  return new Decimal(String(isNight ? cfg[`${k}Night`] : cfg[k]));
+}
+
+export function maxHoursPerDay(type: OvertimeType, cfg: OvertimeConfig = DEFAULT_OVERTIME): number {
+  return type === 'WEEKDAY' ? cfg.weekdayMaxHours : cfg.restDayMaxHours;
 }
 
 /**
@@ -44,18 +72,19 @@ export function validateOvertime(
   type: OvertimeType,
   usedInDay: Decimal.Value,
   usedInMonth: Decimal.Value,
+  cfg: OvertimeConfig = DEFAULT_OVERTIME,
 ): string | null {
   const h = new Decimal(hours);
   if (h.lte(0)) return 'Số giờ làm thêm phải lớn hơn 0';
   if (!h.mul(2).isInteger()) return 'Số giờ làm thêm tính theo nửa giờ (0,5)';
-  const dayMax = maxHoursPerDay(type);
+  const dayMax = maxHoursPerDay(type, cfg);
   const day = h.plus(usedInDay);
   if (day.gt(dayMax)) {
     return `Vượt giới hạn ${dayMax} giờ làm thêm trong ngày${type === 'WEEKDAY' ? ' thường' : ' nghỉ/lễ'} (đã có ${new Decimal(usedInDay).toString()} giờ)`;
   }
   const month = h.plus(usedInMonth);
-  if (month.gt(MONTHLY_LIMIT_HOURS)) {
-    return `Vượt giới hạn ${MONTHLY_LIMIT_HOURS} giờ làm thêm/tháng (đã có ${new Decimal(usedInMonth).toString()} giờ)`;
+  if (month.gt(cfg.monthlyLimitHours)) {
+    return `Vượt giới hạn ${cfg.monthlyLimitHours} giờ làm thêm/tháng (đã có ${new Decimal(usedInMonth).toString()} giờ)`;
   }
   return null;
 }

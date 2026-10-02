@@ -12,8 +12,9 @@ describe('roundSeveranceYears', () => {
   it('lẻ từ 1 đến dưới 6 tháng -> 0,5 năm', () => {
     expect(roundSeveranceYears(16).toString()).toBe('1.5'); // 1 năm 4 tháng
   });
-  it('lẻ từ đủ 6 tháng -> 1 năm', () => {
-    expect(roundSeveranceYears(18).toString()).toBe('2'); // 1 năm 6 tháng
+  it('lẻ đúng 6 tháng -> 0,5 năm; trên 6 tháng -> 1 năm (NĐ 145/2020)', () => {
+    expect(roundSeveranceYears(18).toString()).toBe('1.5'); // 1 năm 6 tháng
+    expect(roundSeveranceYears(19).toString()).toBe('2'); // 1 năm 7 tháng
   });
 });
 
@@ -54,5 +55,12 @@ describe('calcFinalSettlement', () => {
     });
     // 16 tháng -> 1,5 năm; 1,5 * 1 * 20tr = 30tr, nhưng min 2*20tr = 40tr
     expect(r.severanceAmount.toString()).toBe('40000000');
+  });
+});
+
+describe('mất việc — toàn bộ thời gian đã đóng BHTN', () => {
+  it('không còn thời gian tính trợ cấp → không áp mức tối thiểu 2 tháng', () => {
+    const r = calcFinalSettlement({ totalWorkedMonths: 36, unemploymentInsuredMonths: 36, avgSalary6Months: 20_000_000, unusedLeaveDays: 0, isRedundancy: true });
+    expect(r.severanceAmount.toString()).toBe('0');
   });
 });

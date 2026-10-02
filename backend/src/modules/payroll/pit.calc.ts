@@ -56,8 +56,12 @@ export function calcProgressivePITQuick(
   return roundVND(sub(mul(income, applicable.rate), applicable.quickDeduction));
 }
 
-/** Khấu trừ 10% cho hợp đồng dưới 3 tháng (cư trú). */
-export function calcFlat10(taxableIncome: Decimal.Value): Decimal {
+/** Mức trả thu nhập từ đây trở lên mới khấu trừ 10% (TT 111/2013 Điều 25 khoản 1 điểm i). */
+export const FLAT_10_THRESHOLD = 2_000_000;
+
+/** Khấu trừ 10% cho hợp đồng dưới 3 tháng (cư trú) — dưới 2 triệu đồng/lần không khấu trừ. */
+export function calcFlat10(taxableIncome: Decimal.Value, threshold: number = FLAT_10_THRESHOLD): Decimal {
+  if (new Decimal(taxableIncome).lessThan(threshold)) return new Decimal(0);
   return roundVND(mul(taxableIncome, FLAT_10_RATE));
 }
 

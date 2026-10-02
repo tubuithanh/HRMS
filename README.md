@@ -9,7 +9,7 @@ thông tư thuế hiện hành. Chạy trên web và điện thoại (cài như 
 | | |
 |---|---|
 | **Công nghệ** | PostgreSQL · Express · React · Node.js — viết bằng TypeScript |
-| **Quy mô mã nguồn** | 22 phân hệ backend · 56 bảng dữ liệu · 236 unit test + kiểm thử đầu-cuối |
+| **Quy mô mã nguồn** | 22 phân hệ backend · 56 bảng dữ liệu · 241 unit test + kiểm thử đầu-cuối |
 | **Bản chạy thử** | https://hrms-lk4o.onrender.com (dữ liệu giả) |
 
 > ⚠️ Các công thức lương, thuế, bảo hiểm và chế độ BHXH được lập trình theo văn bản pháp luật và có unit test,
@@ -97,7 +97,7 @@ thông tư thuế hiện hành. Chạy trên web và điện thoại (cài như 
 | Chức năng | Mô tả |
 |---|---|
 | **Tài khoản** | Tạo / khoá / đặt lại mật khẩu, gắn với hồ sơ nhân sự, **phạm vi dữ liệu theo đơn vị**. |
-| **Cấu hình hệ thống** | Thông tin công ty, giờ hành chính, phụ cấp đêm, trừ muộn / sớm, ngưỡng gợi ý làm thêm, giới hạn vị trí chấm công, duyệt 2 cấp, bảo mật đăng nhập, gửi email thử, nhắc việc. |
+| **Cấu hình hệ thống** | Mọi tham số vận hành chỉnh trên web, có kiểm tra không vượt mức luật định: thông tin công ty; giờ hành chính, phụ cấp đêm, trừ muộn / sớm, ngưỡng gợi ý làm thêm; tính lương (vùng, ngày trả, giờ làm / ngày, trần khấu trừ, ngưỡng miễn đóng BH, ngưỡng khấu trừ thuế 10%); làm thêm giờ (hệ số 6 loại, giới hạn ngày / tháng, thời hạn đăng ký); dưỡng sức; giới hạn vị trí chấm công; duyệt 2 cấp; bảo mật đăng nhập; giờ chạy và số ngày báo trước của nhắc việc; gửi email thử. Tham số pháp lý (giảm trừ, lương cơ sở, biểu thuế, tỷ lệ BH) quản lý theo ngày hiệu lực. |
 | **Nhập / xuất Excel** | Nhân viên mới, điều chỉnh lương, chấm công theo file mẫu; kiểm tra từng dòng, tất cả hoặc không. Xuất danh sách nhân sự. |
 | **Nhật ký thao tác** | Mọi thao tác ghi dữ liệu kèm giá trị trước / sau, đăng nhập thành công / thất bại; mật khẩu luôn được che. |
 
@@ -139,6 +139,8 @@ Mật khẩu các tài khoản `*.demo`: `Demo@12345`.
 
 ## 3. Quy tắc nghiệp vụ và căn cứ pháp lý
 
+> **Khi luật thay đổi — không cần sửa mã nguồn:** mức tiền (giảm trừ gia cảnh, lương cơ sở, lương tối thiểu vùng, biểu thuế, tỷ lệ BH) thêm mức mới theo ngày hiệu lực ở *Cấu hình hệ thống → Tham số pháp lý*; các con số trong công thức (hệ số và giới hạn làm thêm, trần khấu trừ, thời hạn hợp đồng, thử việc, phép thâm niên, trợ cấp thôi việc / mất việc, số ngày và mức hưởng ốm đau, thai sản, dưỡng sức…) sửa ở *Cấu hình hệ thống* (khung **Tính lương**, **Làm thêm giờ**, **Quy tắc luật lao động & BHXH**). Các số dưới đây là mặc định theo luật hiện hành.
+
 ### 3.1. Tính lương
 
 Chi tiết và ví dụ số: `backend/src/modules/payroll/payroll.inputs.ts` và các file `*.test.ts` cùng thư mục.
@@ -151,7 +153,7 @@ Chi tiết và ví dụ số: `backend/src/modules/payroll/payroll.inputs.ts` v�
 5. **Bảo hiểm** tính trên lương đóng BH + phụ cấp tính BH; không làm việc từ 14 ngày trong tháng thì không đóng.
 6. **Khấu trừ khác** (tạm ứng, bồi thường thiệt hại…) tối đa 30% lương thực trả, phần vượt tự trừ kỳ sau.
 7. Giảm trừ gia cảnh, lương cơ sở, lương tối thiểu vùng, biểu thuế, tỷ lệ BH lấy theo **ngày hiệu lực** vào ngày cuối kỳ.
-8. **Nghỉ việc**: trợ cấp thôi việc ½ tháng lương / năm (mất việc: 1 tháng / năm, tối thiểu 2 tháng), từ đủ 12 tháng, trừ thời gian đóng BHTN; tiền phép chưa nghỉ.
+8. **Nghỉ việc**: trợ cấp thôi việc ½ tháng lương / năm (mất việc: 1 tháng / năm, tối thiểu 2 tháng), từ đủ 12 tháng, trừ thời gian đóng BHTN; tháng lẻ ≤ 6 tính ½ năm, > 6 tính 1 năm; tiền phép chưa nghỉ = lương / số ngày làm việc tháng liền kề × số ngày.
 
 ### 3.2. Thuế TNCN
 
@@ -416,7 +418,7 @@ dịch vụ ngoài gọi API. Render gói miễn phí ngủ khi không có ngư�
 
 ```bash
 cd backend
-npm test          # 236 unit test (Vitest)
+npm test          # 241 unit test (Vitest)
 cd ../frontend
 npm run build     # kiểm tra kiểu TypeScript + build
 ```

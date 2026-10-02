@@ -1,5 +1,5 @@
 import { prisma } from '../../config/prisma';
-import { ConflictError, NotFoundError } from '../../common/errors/AppError';
+import { AppError, ConflictError, NotFoundError, ValidationError } from '../../common/errors/AppError';
 import { addDays, monthRange, todayDate } from '../../common/utils/dates';
 import { summarizeMonth } from './attendance.logic';
 import { UpsertRecordInput } from './attendance.schema';
@@ -10,6 +10,14 @@ import { CheckinLocation, timesFor, verifyLocation } from './attendance.times';
 const personSelect = {
   select: { id: true, personCode: true, fullName: true },
 } as const;
+
+/** Chặn sửa công của ngày thuộc kỳ lương đã khoá (bảng công kỳ đó đã chốt để trả lương). */
+export async function assertDateOpen(date: Date) {
+  const locked = await prisma.payPeriod.findFirst({
+    where: { status: { in: ['LOCKED', 'PAID'] }, dateStart: { lte: date }, dateEnd: { gte: date } },
+  });
+  if (locked) throw new AppError(`Kỳ lương ${locked.code} đã khoá, không thể sửa chấm công của kỳ này`, 409, 'PERIOD_LOCKED');
+}
 
 export const attendanceService = {
   // ---------- Nhân viên tự chấm công ----------
@@ -83,6 +91,10 @@ export const attendanceService = {
       where: { id: input.employmentId, isDelete: false },
     });
     if (!emp) throw new NotFoundError('Không tìm thấy hợp đồng lao động');
+    if (input.workDate < emp.dateHire || (emp.dateTerminate && input.workDate > emp.dateTerminate)) {
+      throw new ValidationError('Ngày chấm công nằm ngoài thời gian làm việc của nhân viên');
+    }
+    await assertDateOpen(input.workDate);
     const checkIn = input.checkIn ?? null;
     const checkOut = input.checkOut ?? null;
     const t = await timesFor(input.employmentId, input.workDate, checkIn, checkOut);
@@ -114,6 +126,7 @@ export const attendanceService = {
   async deleteRecord(id: string) {
     const row = await prisma.attendanceRecord.findUnique({ where: { id } });
     if (!row) throw new NotFoundError('Không tìm thấy bản ghi chấm công');
+    await assertDateOpen(row.workDate);
     await prisma.attendanceRecord.delete({ where: { id } });
   },
 

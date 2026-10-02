@@ -63,6 +63,10 @@ export interface BuildInputArgs {
   nightAllowancePercent?: number;
   /** Tổng phút đi muộn + về sớm cần trừ lương (chỉ khi bật trong Cấu hình). */
   lateEarlyMinutes?: number;
+  /** Số giờ làm việc bình thường một ngày (Cấu hình hệ thống), mặc định 8. */
+  hoursPerDay?: number;
+  /** Ngưỡng ngày không làm việc để miễn đóng BH (Cấu hình hệ thống), mặc định 14. */
+  noInsuranceDays?: number;
 }
 
 export interface BuiltInput {
@@ -91,13 +95,13 @@ export function prorate(
   return roundVND(mul(amount, paid).div(standardDays));
 }
 
-export function isInsuranceExempt(standardDays: number, paidDays: Decimal.Value): boolean {
-  return new Decimal(standardDays).minus(paidDays).gte(NO_INSURANCE_DAYS);
+export function isInsuranceExempt(standardDays: number, paidDays: Decimal.Value, threshold = NO_INSURANCE_DAYS): boolean {
+  return new Decimal(standardDays).minus(paidDays).gte(threshold);
 }
 
 function overtimeLines(a: BuildInputArgs): PayElementLine[] {
   if (!a.overtime || a.overtime.length === 0) return [];
-  const hourly = hourlyRate(a.baseSalary, a.standardDays);
+  const hourly = hourlyRate(a.baseSalary, a.standardDays, a.hoursPerDay);
   let taxable = new Decimal(0);
   let exempt = new Decimal(0);
   let hours = new Decimal(0);
@@ -155,7 +159,7 @@ export function lateEarlyDeduction(hourly: Decimal.Value, minutes: number): Deci
 
 export function buildPayrollInput(a: BuildInputArgs): BuiltInput {
   const factor = (amount: Decimal.Value) => prorate(amount, a.paidDays, a.standardDays);
-  const hourly = hourlyRate(a.baseSalary, a.standardDays);
+  const hourly = hourlyRate(a.baseSalary, a.standardDays, a.hoursPerDay);
   const baseByDays = factor(a.baseSalary);
   // Đi muộn / về sớm: trừ thẳng vào lương theo ngày công (giảm cả thu nhập chịu thuế), không âm.
   const lateCut = Decimal.min(lateEarlyDeduction(hourly, a.lateEarlyMinutes ?? 0), baseByDays);
@@ -188,7 +192,7 @@ export function buildPayrollInput(a: BuildInputArgs): BuiltInput {
       : []),
   ];
 
-  const insuranceExempt = isInsuranceExempt(a.standardDays, a.paidDays);
+  const insuranceExempt = isInsuranceExempt(a.standardDays, a.paidDays, a.noInsuranceDays);
   const insuranceSalary = insuranceExempt
     ? new Decimal(0)
     : roundVND(

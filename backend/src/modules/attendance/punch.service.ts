@@ -124,6 +124,12 @@ export async function importPunches(base64: string, commit: boolean) {
   });
   const existMap = new Map(existing.map((e) => [`${e.employmentId}|${ymd(e.workDate)}`, e]));
   const empById = new Map(emps.map((e) => [e.id, e]));
+  // Kỳ lương đã khoá: không ghi đè công của các ngày thuộc kỳ đó.
+  const lockedPeriods = await prisma.payPeriod.findMany({
+    where: { status: { in: ['LOCKED', 'PAID'] }, dateStart: { lte: to }, dateEnd: { gte: from } },
+    select: { dateStart: true, dateEnd: true, code: true },
+  });
+  const lockedOf = (d: Date) => lockedPeriods.find((p) => p.dateStart <= d && p.dateEnd >= d);
 
   const items = grouped.map((g) => {
     const e = empById.get(g.key)!;
@@ -131,7 +137,8 @@ export async function importPunches(base64: string, commit: boolean) {
     const t = computeAttendanceTimes(g.checkIn, g.checkOut, g.workDate, shift);
     const ex = existMap.get(`${g.key}|${ymd(g.workDate)}`);
     const outOfEmployment = g.workDate < e.dateHire || (e.dateTerminate && g.workDate > e.dateTerminate);
-    const skip = outOfEmployment ? 'Ngoài thời gian làm việc' : ex?.source === 'MANUAL' ? 'Đã có bản ghi nhân sự nhập tay — giữ nguyên' : null;
+    const locked = lockedOf(g.workDate);
+    const skip = outOfEmployment ? 'Ngoài thời gian làm việc' : locked ? `Kỳ lương ${locked.code} đã khoá` : ex?.source === 'MANUAL' ? 'Đã có bản ghi nhân sự nhập tay — giữ nguyên' : null;
     return {
       employmentId: g.key,
       codeEmp: e.codeEmp,

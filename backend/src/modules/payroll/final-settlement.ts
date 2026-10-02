@@ -1,3 +1,4 @@
+import { DEFAULT_LABOR_RULES, LaborRules } from '../settings/labor-rules';
 import Decimal from 'decimal.js';
 import { add, mul, divRound, roundVND } from '../../common/utils/money';
 
@@ -27,6 +28,8 @@ export interface FinalSettlementInput {
   standardDaysPerMonth?: number;
   /** Trợ cấp mất việc thay vì thôi việc (thay đổi cơ cấu/công nghệ). */
   isRedundancy?: boolean;
+  /** Quy tắc (Cấu hình hệ thống → Quy tắc luật lao động & BHXH). */
+  rules?: Pick<LaborRules, 'resignMonthFactor' | 'redundancyMonthFactor' | 'redundancyMinMonths' | 'halfYearMaxMonths'>;
 }
 
 export interface FinalSettlementResult {
@@ -37,16 +40,16 @@ export interface FinalSettlementResult {
 }
 
 /**
- * Làm tròn số năm theo luật: dưới 1 tháng lẻ bỏ qua; từ đủ 1 đến dưới 6
- * tháng tính 1/2 năm; từ đủ 6 tháng tính 1 năm.
+ * Làm tròn số năm theo Nghị định 145/2020 Điều 8 khoản 3: tháng lẻ ít hơn hoặc
+ * bằng 06 tháng tính 1/2 năm; trên 06 tháng tính 1 năm.
  */
-export function roundSeveranceYears(eligibleMonths: number): Decimal {
+export function roundSeveranceYears(eligibleMonths: number, halfYearMaxMonths = 6): Decimal {
   if (eligibleMonths <= 0) return new Decimal(0);
   const fullYears = Math.floor(eligibleMonths / 12);
   const remainderMonths = eligibleMonths % 12;
 
   let fraction = new Decimal(0);
-  if (remainderMonths >= 6) {
+  if (remainderMonths > halfYearMaxMonths) {
     fraction = new Decimal(1);
   } else if (remainderMonths >= 1) {
     fraction = new Decimal('0.5');
@@ -65,17 +68,18 @@ export function calcFinalSettlement(
     0,
     input.totalWorkedMonths - input.unemploymentInsuredMonths,
   );
-  const severanceYears = roundSeveranceYears(eligibleMonths);
+  const rules = input.rules ?? DEFAULT_LABOR_RULES;
+  const severanceYears = roundSeveranceYears(eligibleMonths, rules.halfYearMaxMonths);
 
   // Hệ số tháng lương: thôi việc 0,5 / mất việc 1,0
-  const monthFactor = input.isRedundancy ? new Decimal(1) : new Decimal('0.5');
+  const monthFactor = new Decimal(input.isRedundancy ? rules.redundancyMonthFactor : rules.resignMonthFactor);
   let severanceAmount = roundVND(
     mul(mul(severanceYears, monthFactor), avg),
   );
 
-  // Trợ cấp mất việc tối thiểu 2 tháng lương
-  if (input.isRedundancy) {
-    const minAmount = roundVND(mul(avg, 2));
+  // Trợ cấp mất việc tối thiểu 2 tháng lương (khi còn thời gian được tính trợ cấp)
+  if (input.isRedundancy && severanceYears.gt(0)) {
+    const minAmount = roundVND(mul(avg, rules.redundancyMinMonths));
     if (severanceAmount.lessThan(minAmount)) {
       severanceAmount = minAmount;
     }

@@ -17,9 +17,11 @@ export interface CappedDeduction {
 export function capDeduction(
   requestedDeduction: Decimal.Value,
   netBeforeOtherDeductions: Decimal.Value,
+  capPercent = 30,
 ): CappedDeduction {
   const requested = new Decimal(requestedDeduction);
-  const cap = roundVND(mul(netBeforeOtherDeductions, '0.30'));
+  const cap = Decimal.max(roundVND(mul(netBeforeOtherDeductions, new Decimal(capPercent).div(100))), 0);
+  if (requested.lte(0)) return { applied: new Decimal(0), deferred: new Decimal(0), cap };
 
   if (requested.lessThanOrEqualTo(cap)) {
     return { applied: requested, deferred: new Decimal(0), cap };

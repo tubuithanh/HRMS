@@ -199,7 +199,9 @@ export const payrollService = {
     });
 
     const holidays = await holidaySet(start, asOf);
-    const attSettings = (await getSettings()).attendance;
+    const sys = await getSettings();
+    const attSettings = sys.attendance;
+    const paySettings = sys.payroll;
     // Tham số pháp lý (giảm trừ, lương cơ sở, biểu thuế, tỷ lệ BH) hiệu lực vào ngày cuối kỳ.
     const legal = await loadLegalParams(asOf);
 
@@ -325,6 +327,8 @@ export const payrollService = {
           nightHours: nightHours.toString(),
           nightAllowancePercent: attSettings.nightAllowancePercent,
           lateEarlyMinutes: attSettings.deductLateEarly ? lateEarlyMinutes : 0,
+          hoursPerDay: paySettings.hoursPerDay,
+          noInsuranceDays: paySettings.noInsuranceDays,
         });
         const agg = aggregateElements(built.lines);
 
@@ -337,12 +341,14 @@ export const payrollService = {
           taxMethod,
           otherDeductions: agg.otherDeductions,
           legal,
+          deductionCapPercent: paySettings.deductionCapPercent,
+          flat10Threshold: paySettings.flat10Threshold,
         });
 
         if (result.deferredDeduction.gt(0)) {
           warnings.push({
             employmentId: emp.id,
-            message: `Khấu trừ vượt trần 30% lương thực trả, còn ${result.deferredDeduction.toFixed(0)}đ chưa trừ`,
+            message: `Khấu trừ vượt trần ${paySettings.deductionCapPercent}% lương thực trả, còn ${result.deferredDeduction.toFixed(0)}đ chưa trừ`,
           });
         }
 

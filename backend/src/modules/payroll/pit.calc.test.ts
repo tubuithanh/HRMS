@@ -54,3 +54,10 @@ describe('Khấu trừ cố định', () => {
     expect(calcFlat20(5_000_000).toString()).toBe('1000000');
   });
 });
+
+describe('khấu trừ 10% — ngưỡng 2 triệu đồng/lần', () => {
+  it('dưới 2 triệu không khấu trừ, từ 2 triệu khấu trừ 10%', () => {
+    expect(calcFlat10(1_999_999).toString()).toBe('0');
+    expect(calcFlat10(2_000_000).toString()).toBe('200000');
+  });
+});

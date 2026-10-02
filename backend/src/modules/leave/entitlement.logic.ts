@@ -18,6 +18,9 @@ export interface EntitlementInput {
   /** Ngày nghỉ việc, hoặc ngày chốt để tính (vd khi quyết toán). */
   until?: Date | null;
   year: number;
+  /** Cứ đủ bao nhiêu năm được cộng bao nhiêu ngày (Điều 114: 5 năm → 1 ngày). */
+  seniorityStepYears?: number;
+  seniorityBonusDays?: number;
 }
 
 /** Số năm làm việc tròn đến cuối năm xét (để cộng phép thâm niên). */
@@ -46,7 +49,8 @@ export function monthsWorkedInYear(dateHire: Date, until: Date | null | undefine
 }
 
 export function annualEntitlement(input: EntitlementInput): number {
-  const bonus = input.seniorityBonus ? Math.floor(seniorityYears(input.dateSeniority, input.year) / 5) : 0;
+  const step = input.seniorityStepYears ?? 5;
+  const bonus = input.seniorityBonus ? Math.floor(seniorityYears(input.dateSeniority, input.year) / step) * (input.seniorityBonusDays ?? 1) : 0;
   const full = input.daysPerYear + bonus;
   const months = monthsWorkedInYear(input.dateHire, input.until, input.year);
   if (months >= 12) return full;

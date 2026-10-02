@@ -1,3 +1,4 @@
+import { DEFAULT_LABOR_RULES, LaborRules } from '../settings/labor-rules';
 /**
  * Kiểm tra hợp đồng lao động theo Bộ luật Lao động 2019.
  * Hàm thuần — không truy cập database — để test được.
@@ -56,6 +57,7 @@ export function validateContract(
   c: ContractLike,
   existing: ContractLike[],
   maxProbationDays?: number | null,
+  rules: Pick<LaborRules, 'maxFixedTermMonths' | 'maxFixedTermContracts' | 'maxProbationDays'> = DEFAULT_LABOR_RULES,
 ): string | null {
   if (c.endDate && c.endDate < c.startDate) {
     return 'Ngày kết thúc phải sau hoặc bằng ngày bắt đầu';
@@ -67,19 +69,19 @@ export function validateContract(
       break;
     case 'FIXED_TERM': {
       if (!c.endDate) return 'Hợp đồng xác định thời hạn phải có ngày kết thúc';
-      if (c.endDate > addMonthsEnd(c.startDate, MAX_FIXED_TERM_MONTHS)) {
-        return `Hợp đồng xác định thời hạn không quá ${MAX_FIXED_TERM_MONTHS} tháng`;
+      if (c.endDate > addMonthsEnd(c.startDate, rules.maxFixedTermMonths)) {
+        return `Hợp đồng xác định thời hạn không quá ${rules.maxFixedTermMonths} tháng`;
       }
       // Điều 20 khoản 2: chỉ được ký thêm 1 lần HĐ xác định thời hạn.
       const fixedCount = existing.filter((e) => e.contractType === 'FIXED_TERM' && e.id !== c.id).length;
-      if (fixedCount >= 2) {
-        return 'Đã ký 2 hợp đồng xác định thời hạn, lần tiếp theo phải là hợp đồng không xác định thời hạn';
+      if (fixedCount >= rules.maxFixedTermContracts) {
+        return `Đã ký ${rules.maxFixedTermContracts} hợp đồng xác định thời hạn, lần tiếp theo phải là hợp đồng không xác định thời hạn`;
       }
       break;
     }
     case 'PROBATION': {
       if (!c.endDate) return 'Hợp đồng thử việc phải có ngày kết thúc';
-      const limit = Math.min(maxProbationDays ?? MAX_PROBATION_DAYS, MAX_PROBATION_DAYS);
+      const limit = Math.min(maxProbationDays ?? rules.maxProbationDays, rules.maxProbationDays);
       if (daysInclusive(c.startDate, c.endDate) > limit) {
         return `Thời gian thử việc không quá ${limit} ngày`;
       }

@@ -1,3 +1,4 @@
+import { getSettings } from '../settings/settings.service';
 import { z } from 'zod';
 import { prisma } from '../../config/prisma';
 import { AppError, ConflictError, NotFoundError, ValidationError } from '../../common/errors/AppError';
@@ -79,6 +80,7 @@ export const contractService = {
         { contractType, startDate: input.startDate, endDate: input.endDate ?? null },
         existing,
         maxProbation,
+        (await getSettings()).laborRules,
       );
       if (error) throw new ValidationError(error);
     }

@@ -15,7 +15,7 @@ describe('số ngày được hưởng', () => {
     expect(childSickDaysPerYear(d('2018-01-01'), d('2026-10-01'))).toBe(0);
   });
   it('sảy thai theo tuổi thai, lao động nam khi vợ sinh, sinh con', () => {
-    expect([4, 5, 12, 13, 21, 22].map(miscarriageDays)).toEqual([10, 20, 20, 40, 40, 50]);
+    expect([4, 5, 12, 13, 21, 22].map((w) => miscarriageDays(w))).toEqual([10, 20, 20, 40, 40, 50]);
     expect([paternityMaxDays(1, false), paternityMaxDays(1, true), paternityMaxDays(2, false), paternityMaxDays(3, false), paternityMaxDays(2, true)]).toEqual([5, 7, 10, 13, 14]);
     expect([birthMonths(1), birthMonths(2), birthMonths(3)]).toEqual([6, 7, 8]);
   });
@@ -39,5 +39,15 @@ describe('tiền chế độ', () => {
   it('sảy thai: ngày lịch ÷ 30; dưỡng sức: 30% lương cơ sở / ngày', () => {
     expect(calcClaim({ ...base, regime: 'MISCARRIAGE', days: 20 }).amount.toNumber()).toBe(6_666_667);
     expect(calcClaim({ ...base, regime: 'RECOVERY', days: 5 }).amount.toNumber()).toBe(3_510_000);
+  });
+});
+
+describe('quy tắc lấy từ Cấu hình hệ thống', () => {
+  it('luật đổi tỷ lệ ốm đau / số ngày → dùng số mới', async () => {
+    const { DEFAULT_LABOR_RULES } = await import('../settings/labor-rules');
+    const rules = { ...DEFAULT_LABOR_RULES, sickRatePercent: 80, sickDaysUnder15: 35 };
+    expect(sickDaysPerYear(1, false, rules)).toBe(35);
+    const r = calcClaim({ regime: 'SICK', days: 24, lastMonthSalary: 10_000_000, avg6Salary: 0, baseSalary: 0, rules });
+    expect(r.amount.toString()).toBe('8000000');
   });
 });

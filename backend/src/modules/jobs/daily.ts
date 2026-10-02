@@ -1,3 +1,4 @@
+import { getSettings } from '../settings/settings.service';
 import { prisma } from '../../config/prisma';
 import { sendMail } from '../../common/mailer';
 import { addDays, formatDate, todayDate } from '../../common/utils/dates';
@@ -17,7 +18,6 @@ import { withoutScope } from '../../common/scope/scope';
  * POST /api/cron/daily (kèm CRON_SECRET) — cần cho Render gói miễn phí vì server ngủ khi không có người dùng.
  */
 
-const RUN_AFTER_HOUR = 7;
 const STATE_KEY = 'jobsState';
 
 interface Item {
@@ -71,13 +71,14 @@ async function deliver(items: Item[]) {
 /** Tính toàn bộ mục nhắc việc của ngày (không ghi). */
 export async function collectDailyItems(today = todayDate()): Promise<Item[]> {
   const items: Item[] = [];
+  const cfg = (await getSettings()).reminders;
   const staff = await usersByRole(['ADMIN', 'HR']);
   const toStaff = (it: Omit<Item, 'userId'>) => staff.forEach((userId) => items.push({ ...it, userId }));
   const working = { status: { in: ['ACTIVE', 'PROBATION'] as Array<'ACTIVE' | 'PROBATION'> }, isDelete: false };
 
   // Hợp đồng hết hạn trong 30 ngày
   const contracts = await prisma.laborContract.findMany({
-    where: { isDelete: false, parentId: null, terminatedDate: null, endDate: { gte: today, lte: addDays(today, 30) }, employment: working },
+    where: { isDelete: false, parentId: null, terminatedDate: null, endDate: { gte: today, lte: addDays(today, cfg.contractDays) }, employment: working },
     select: { id: true, contractNo: true, endDate: true, employment: { select: { person: { select: { id: true, fullName: true } } } } },
   });
   for (const c of contracts) {
@@ -94,7 +95,7 @@ export async function collectDailyItems(today = todayDate()): Promise<Item[]> {
 
   // Hết thử việc trong 7 ngày
   const probation = await prisma.employment.findMany({
-    where: { isDelete: false, status: 'PROBATION', probationEndDate: { gte: today, lte: addDays(today, 7) } },
+    where: { isDelete: false, status: 'PROBATION', probationEndDate: { gte: today, lte: addDays(today, cfg.probationDays) } },
     select: { id: true, probationEndDate: true, person: { select: { id: true, fullName: true } } },
   });
   for (const e of probation) {
@@ -103,7 +104,7 @@ export async function collectDailyItems(today = todayDate()): Promise<Item[]> {
 
   // Chứng chỉ đào tạo hết hạn trong 30 ngày
   const certs = await prisma.trainingParticipant.findMany({
-    where: { result: 'PASSED', certificateExpiry: { gte: today, lte: addDays(today, 30) }, employment: working },
+    where: { result: 'PASSED', certificateExpiry: { gte: today, lte: addDays(today, cfg.certificateDays) }, employment: working },
     select: { id: true, certificateNo: true, certificateExpiry: true, course: { select: { name: true } }, employment: { select: { person: { select: { id: true, fullName: true } } } } },
   });
   for (const c of certs) {
@@ -112,8 +113,8 @@ export async function collectDailyItems(today = todayDate()): Promise<Item[]> {
 
   // Giấy phép lao động / thẻ tạm trú hết hạn trong 60 ngày
   const [permits, cards] = await Promise.all([
-    prisma.workPermit.findMany({ where: { expiryDate: { gte: today, lte: addDays(today, 60) }, person: { isDelete: false, employments: { some: working } } }, select: { id: true, expiryDate: true, person: { select: { id: true, fullName: true } } } }),
-    prisma.residenceCard.findMany({ where: { expiryDate: { gte: today, lte: addDays(today, 60) }, person: { isDelete: false, employments: { some: working } } }, select: { id: true, expiryDate: true, person: { select: { id: true, fullName: true } } } }),
+    prisma.workPermit.findMany({ where: { expiryDate: { gte: today, lte: addDays(today, cfg.permitDays) }, person: { isDelete: false, employments: { some: working } } }, select: { id: true, expiryDate: true, person: { select: { id: true, fullName: true } } } }),
+    prisma.residenceCard.findMany({ where: { expiryDate: { gte: today, lte: addDays(today, cfg.permitDays) }, person: { isDelete: false, employments: { some: working } } }, select: { id: true, expiryDate: true, person: { select: { id: true, fullName: true } } } }),
   ]);
   for (const p of permits) toStaff({ title: `Giấy phép lao động sắp hết hạn: ${p.person.fullName}`, body: `Hết hạn ${dmy(p.expiryDate!)} — gia hạn trước ít nhất 5 ngày làm việc.`, link: `/persons/${p.person.id}`, dedupeKey: `permit:${p.id}` });
   for (const c of cards) toStaff({ title: `Thẻ tạm trú sắp hết hạn: ${c.person.fullName}`, body: `Hết hạn ${dmy(c.expiryDate!)}.`, link: `/persons/${c.person.id}`, dedupeKey: `residence:${c.id}` });
@@ -150,7 +151,7 @@ export async function collectDailyItems(today = todayDate()): Promise<Item[]> {
 
   // Kỳ đánh giá sắp hết hạn (≤ 3 ngày)
   const reviews = await prisma.performanceReview.findMany({
-    where: { status: { in: ['SELF', 'MANAGER'] }, cycle: { status: 'OPEN', dueDate: { gte: today, lte: addDays(today, 3) } } },
+    where: { status: { in: ['SELF', 'MANAGER'] }, cycle: { status: 'OPEN', dueDate: { gte: today, lte: addDays(today, cfg.reviewDays) } } },
     select: { id: true, status: true, employmentId: true, reviewerEmploymentId: true, cycle: { select: { name: true, dueDate: true } }, employment: { select: { person: { select: { fullName: true } } } } },
   });
   if (reviews.length) {
@@ -186,7 +187,7 @@ export async function runDailyJobs(opts: { force?: boolean; now?: Date } = {}) {
     const key = formatDate(today);
     const state = await prisma.systemSetting.findUnique({ where: { key: STATE_KEY } });
     const last = (state?.value as { lastDailyRun?: string } | null)?.lastDailyRun;
-    if (!opts.force && (last === key || now.getHours() < RUN_AFTER_HOUR)) return { skipped: true, lastDailyRun: last ?? null };
+    if (!opts.force && (last === key || now.getHours() < (await getSettings()).reminders.runAfterHour)) return { skipped: true, lastDailyRun: last ?? null };
     const items = await collectDailyItems(today);
     const byUser = await deliver(items);
     // Email tổng hợp cho người có mục mới

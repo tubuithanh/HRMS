@@ -1,8 +1,10 @@
+import { getSettings } from '../settings/settings.service';
+import { LaborRules } from '../settings/labor-rules';
 import Decimal from 'decimal.js';
 import { z } from 'zod';
 import { prisma } from '../../config/prisma';
 import { AppError, ConflictError, NotFoundError, ValidationError } from '../../common/errors/AppError';
-import { formatDate } from '../../common/utils/dates';
+import { countWorkingDays, formatDate } from '../../common/utils/dates';
 import { pickEffective } from '../../common/utils/effectiveDating';
 import { calcFinalSettlement } from '../payroll/final-settlement';
 import { leaveService } from '../leave/leave.service';
@@ -93,8 +95,15 @@ async function suggest(emp: Awaited<ReturnType<typeof loadEmployment>>, date: Da
   return { totalWorkedMonths, unemploymentInsuredMonths, avgSalary6Months, unusedLeaveDays, remainingAdvance: remainingAdvance.toNumber() };
 }
 
-function settle(type: TerminationType, v: { totalWorkedMonths: number; unemploymentInsuredMonths: number; avgSalary6Months: number; unusedLeaveDays: number }) {
-  const eligibility = severanceEligibility(type, v.totalWorkedMonths);
+/** Số ngày làm việc bình thường của tháng liền kề trước ngày nghỉ việc (NĐ 145/2020 Điều 67) — để quy ra lương ngày. */
+function standardDaysBefore(date: Date): number {
+  const from = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - 1, 1));
+  const to = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 0));
+  return countWorkingDays(from, to) || 22;
+}
+
+function settle(rules: LaborRules, type: TerminationType, date: Date, v: { totalWorkedMonths: number; unemploymentInsuredMonths: number; avgSalary6Months: number; unusedLeaveDays: number }) {
+  const eligibility = severanceEligibility(type, v.totalWorkedMonths, rules.severanceMinMonths);
   const r = calcFinalSettlement({
     totalWorkedMonths: v.totalWorkedMonths,
     // Không đủ điều kiện: coi như toàn bộ thời gian đã đóng BHTN → trợ cấp 0.
@@ -102,6 +111,8 @@ function settle(type: TerminationType, v: { totalWorkedMonths: number; unemploym
     avgSalary6Months: v.avgSalary6Months,
     unusedLeaveDays: v.unusedLeaveDays,
     isRedundancy: eligibility.isRedundancy,
+    standardDaysPerMonth: standardDaysBefore(date),
+    rules,
   });
   return {
     eligibility,
@@ -140,7 +151,7 @@ export const offboardingService = {
     return {
       employee: { id: emp.id, codeEmp: emp.codeEmp, fullName: emp.person.fullName, dateHire: emp.dateHire, status: emp.status },
       suggested: s,
-      settlement: settle(type, used),
+      settlement: settle((await getSettings()).laborRules, type, date, used),
       account: emp.person.user,
       period: period ? { id: period.id, code: period.code, status: period.status } : null,
       lockedUntil: await lockedUntil(),
@@ -159,7 +170,7 @@ export const offboardingService = {
     if (locked && date <= locked) {
       throw new AppError(`Ngày nghỉ việc rơi vào kỳ lương đã khoá (đến ${formatDate(locked)})`, 409, 'PERIOD_LOCKED');
     }
-    const result = settle(input.type, input);
+    const result = settle((await getSettings()).laborRules, input.type, date, input);
     const period = await prisma.payPeriod.findFirst({ where: { dateStart: { lte: date }, dateEnd: { gte: date } } });
     const canPay = input.includeInPayroll && period && period.status !== 'LOCKED' && period.status !== 'PAID';
     const [severanceEl, leaveEl, refundEl] = canPay

@@ -1,3 +1,4 @@
+import { getSettings } from '../settings/settings.service';
 import Decimal from 'decimal.js';
 import { OvertimeStatus, Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -95,11 +96,12 @@ export const overtimeService = {
     if (emp.status === 'TERMINATED' || input.workDate < emp.dateHire || (emp.dateTerminate && input.workDate > emp.dateTerminate)) {
       throw new ValidationError('Ngày làm thêm nằm ngoài thời gian làm việc');
     }
-    // Chỉ đăng ký trong khoảng 30 ngày trước đến 30 ngày sau hôm nay.
+    // Chỉ đăng ký trong khoảng N ngày trước / sau hôm nay (Cấu hình hệ thống → Làm thêm giờ).
+    const cfg = (await getSettings()).overtime;
     const today = todayDate();
     const diff = (input.workDate.getTime() - today.getTime()) / 86_400_000;
-    if (diff < -30 || diff > 30) {
-      throw new ValidationError('Chỉ đăng ký làm thêm trong vòng 30 ngày trước hoặc sau hôm nay');
+    if (diff < -cfg.registerWindowDays || diff > cfg.registerWindowDays) {
+      throw new ValidationError(`Chỉ đăng ký làm thêm trong vòng ${cfg.registerWindowDays} ngày trước hoặc sau hôm nay`);
     }
 
     const holidays = await holidaySet(input.workDate, input.workDate);
@@ -109,7 +111,7 @@ export const overtimeService = {
       sumHours({ employmentId, status: { in: ACTIVE }, workDate: input.workDate }),
       sumHours({ employmentId, status: { in: ACTIVE }, workDate: { gte: start, lte: end } }),
     ]);
-    const error = validateOvertime(input.hours, otType, usedInDay, usedInMonth);
+    const error = validateOvertime(input.hours, otType, usedInDay, usedInMonth, cfg);
     if (error) throw new ValidationError(error);
 
     const approval = await initialApproval(employmentId, viaHr);
@@ -121,7 +123,7 @@ export const overtimeService = {
         hours: String(input.hours),
         otType,
         isNight: input.isNight ?? false,
-        multiplier: multiplierOf(otType, input.isNight ?? false).toString(),
+        multiplier: multiplierOf(otType, input.isNight ?? false, cfg).toString(),
         reason: input.reason,
       },
       include,

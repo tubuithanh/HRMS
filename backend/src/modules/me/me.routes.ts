@@ -22,6 +22,7 @@ import { assetService } from '../assets/asset.service';
 import { insuranceService } from '../benefits/insurance.service';
 import { overtimeSuggestions } from '../overtime/overtime.suggest';
 import { z } from 'zod';
+import { getSettings } from '../settings/settings.service';
 
 /**
  * Tự phục vụ cho mọi tài khoản đã đăng nhập: xem hồ sơ, phiếu lương,
@@ -215,6 +216,14 @@ router.post(
 );
 
 // ---------- Làm thêm giờ ----------
+/** Giới hạn và hệ số làm thêm giờ đang áp dụng (Cấu hình hệ thống) — để hiển thị cho mọi người. */
+router.get(
+  '/overtime-rules',
+  asyncHandler(async (_req, res) => {
+    res.json({ data: (await getSettings()).overtime });
+  }),
+);
+
 router.get(
   '/overtime',
   asyncHandler(async (req, res) => {

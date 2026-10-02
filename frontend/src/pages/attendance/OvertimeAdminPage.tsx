@@ -17,12 +17,37 @@ export function otKind(o: Pick<OvertimeRequest, 'otType' | 'isNight' | 'multipli
   return `${labels.otType[o.otType]}${o.isNight ? ' · đêm' : ''} · ${Math.round(Number(o.multiplier) * 100)}%`;
 }
 
-export const overtimeHint = (
-  <div className="alert alert-info small">
-    Hệ số theo Điều 98 BLLĐ 2019: ngày thường 150%, ngày nghỉ tuần 200%, ngày lễ 300% (ban đêm 210% / 270% / 390%). Tối đa 4 giờ/ngày thường,
-    12 giờ/ngày nghỉ, 40 giờ/tháng. Phần trả cao hơn lương giờ bình thường được miễn thuế TNCN.
-  </div>
-);
+export interface OvertimeRules {
+  weekdayMaxHours: number;
+  restDayMaxHours: number;
+  monthlyLimitHours: number;
+  weekday: number;
+  weekend: number;
+  holiday: number;
+  weekdayNight: number;
+  weekendNight: number;
+  holidayNight: number;
+  registerWindowDays: number;
+}
+
+/** Giới hạn và hệ số đang áp dụng (Cấu hình hệ thống → Làm thêm giờ). */
+export function useOvertimeRules() {
+  return useFetch<OvertimeRules>('/me/overtime-rules').data;
+}
+
+const p100 = (n: number) => `${Math.round(n * 100)}%`;
+
+export function OvertimeHint() {
+  const r = useOvertimeRules();
+  if (!r) return null;
+  return (
+    <div className="alert alert-info small">
+      Hệ số: ngày thường {p100(r.weekday)}, ngày nghỉ tuần {p100(r.weekend)}, ngày lễ {p100(r.holiday)} (ban đêm {p100(r.weekdayNight)} /{' '}
+      {p100(r.weekendNight)} / {p100(r.holidayNight)}). Tối đa {r.weekdayMaxHours} giờ/ngày thường, {r.restDayMaxHours} giờ/ngày nghỉ,{' '}
+      {r.monthlyLimitHours} giờ/tháng; đăng ký trong vòng {r.registerWindowDays} ngày. Phần trả cao hơn lương giờ bình thường được miễn thuế TNCN.
+    </div>
+  );
+}
 
 type Filter = 'PENDING' | 'APPROVED' | 'ALL' | 'SUGGEST';
 
@@ -118,7 +143,7 @@ export default function OvertimeAdminPage() {
           onClose={() => setDialog(null)}
           onSaved={() => { setDialog(null); reload(); }}
         >
-          {overtimeHint}
+          <OvertimeHint />
         </FormModal>
       )}
       {dialog && typeof dialog === 'object' && (

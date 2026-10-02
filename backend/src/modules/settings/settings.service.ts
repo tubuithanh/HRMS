@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { prisma } from '../../config/prisma';
 import { NotFoundError, ValidationError } from '../../common/errors/AppError';
+import { DEFAULT_LABOR_RULES, laborRulesSchema } from './labor-rules';
 
 /**
  * CẤU HÌNH HỆ THỐNG — lưu trong bảng system_setting, mỗi nhóm một dòng (JSON).
@@ -17,7 +18,7 @@ export const settingsSchema = z.object({
       workEnd: hhmm,
       lateGraceMinutes: z.number().int().min(0).max(120),
       /** Phụ cấp làm việc ban đêm, % lương giờ — tối thiểu 30% (Điều 98 BLLĐ 2019). */
-      nightAllowancePercent: z.number().int().min(30, 'Tối thiểu 30% (Điều 98 BLLĐ)').max(200),
+      nightAllowancePercent: z.number().int().min(0).max(200),
       /** Trừ lương theo số phút đi muộn / về sớm (chỉ trả lương cho thời gian thực làm). */
       deductLateEarly: z.boolean(),
       /** Gợi ý làm thêm giờ khi ở lại sau giờ ca từ số phút này. */
@@ -27,6 +28,41 @@ export const settingsSchema = z.object({
   payroll: z.object({
     defaultRegion: z.number().int().min(1).max(4),
     payDay: z.number().int().min(1).max(28),
+    /** Số giờ làm việc bình thường một ngày — quy ra lương giờ (làm thêm, làm đêm, đi muộn). */
+    hoursPerDay: z.number().min(1).max(12),
+    /** Trần khấu trừ khác (tạm ứng, bồi thường) trên lương thực trả — tối đa 30% (Điều 102 BLLĐ). */
+    deductionCapPercent: z.number().int().min(0).max(100),
+    /** Không làm việc từ số ngày này trở lên trong tháng thì không đóng BH (luật: 14 ngày). */
+    noInsuranceDays: z.number().int().min(1).max(31),
+    /** Khấu trừ thuế 10% (hợp đồng dưới 3 tháng) khi mức trả từ số tiền này (TT 111/2013: 2.000.000đ). */
+    flat10Threshold: z.number().int().min(0).max(100_000_000),
+  }),
+  /** Làm thêm giờ — giới hạn và hệ số (không thấp hơn mức luật định, Điều 98 và 107 BLLĐ). */
+  overtime: z.object({
+    weekdayMaxHours: z.number().min(0.5).max(16),
+    restDayMaxHours: z.number().min(0.5).max(24),
+    monthlyLimitHours: z.number().min(1).max(300),
+    weekday: z.number().min(1).max(10),
+    weekend: z.number().min(1).max(10),
+    holiday: z.number().min(1).max(10),
+    weekdayNight: z.number().min(1).max(10),
+    weekendNight: z.number().min(1).max(10),
+    holidayNight: z.number().min(1).max(10),
+    /** Chỉ đăng ký làm thêm trong ± số ngày này so với hôm nay. */
+    registerWindowDays: z.number().int().min(1).max(366),
+  }),
+  /** Chế độ BHXH. */
+  benefits: z.object({
+    recoveryMaxDays: z.number().int().min(1).max(60),
+  }),
+  /** Nhắc việc hằng ngày — giờ chạy và số ngày báo trước. */
+  reminders: z.object({
+    runAfterHour: z.number().int().min(0).max(23),
+    contractDays: z.number().int().min(1).max(180),
+    probationDays: z.number().int().min(1).max(60),
+    certificateDays: z.number().int().min(1).max(180),
+    permitDays: z.number().int().min(1).max(180),
+    reviewDays: z.number().int().min(1).max(30),
   }),
   approval: z.object({
     twoStep: z.boolean(),
@@ -43,6 +79,8 @@ export const settingsSchema = z.object({
     })
     .refine((v) => !v.mode.includes('GPS') || (v.lat !== null && v.lng !== null), { message: 'Cần toạ độ văn phòng', path: ['lat'] })
     .refine((v) => !v.mode.includes('IP') || v.allowedIps.trim().length > 0, { message: 'Cần ít nhất một IP', path: ['allowedIps'] }),
+  /** Quy tắc luật lao động & BHXH (số ngày, hệ số, tỷ lệ trong công thức) — xem labor-rules.ts. */
+  laborRules: laborRulesSchema,
   security: z.object({
     maxFailedLogins: z.number().int().min(3).max(20),
     lockMinutes: z.number().int().min(1).max(1440),
@@ -56,9 +94,17 @@ type Group = keyof Settings;
 
 export const DEFAULT_SETTINGS: Settings = {
   attendance: { workStart: '08:30', workEnd: '17:30', lateGraceMinutes: 0, nightAllowancePercent: 30, deductLateEarly: false, overtimeSuggestMinutes: 60 },
-  payroll: { defaultRegion: 1, payDay: 5 },
+  payroll: { defaultRegion: 1, payDay: 5, hoursPerDay: 8, deductionCapPercent: 30, noInsuranceDays: 14, flat10Threshold: 2_000_000 },
+  overtime: {
+    weekdayMaxHours: 4, restDayMaxHours: 12, monthlyLimitHours: 40,
+    weekday: 1.5, weekend: 2, holiday: 3, weekdayNight: 2.1, weekendNight: 2.7, holidayNight: 3.9,
+    registerWindowDays: 30,
+  },
+  benefits: { recoveryMaxDays: 10 },
+  reminders: { runAfterHour: 7, contractDays: 30, probationDays: 7, certificateDays: 30, permitDays: 60, reviewDays: 3 },
   approval: { twoStep: true },
   checkin: { mode: 'OFF', lat: null, lng: null, radiusMeters: 200, allowedIps: '' },
+  laborRules: DEFAULT_LABOR_RULES,
   security: { maxFailedLogins: 5, lockMinutes: 15, sessionHours: 8, resetTokenMinutes: 30 },
 };
 

@@ -4,7 +4,7 @@ import { ActionButton, Card, DataTable, FormModal, PageHeader } from '../../comp
 import { useFetch } from '../../lib/hooks';
 import { date, todayISO } from '../../lib/format';
 import { OvertimeRequest } from '../../types/models';
-import { OvertimeStatusBadge, otKind, overtimeHint } from '../attendance/OvertimeAdminPage';
+import { OvertimeHint, OvertimeStatusBadge, otKind, useOvertimeRules } from '../attendance/OvertimeAdminPage';
 import { ApprovalNote } from '../leave/LeaveAdminPage';
 import { SelfServiceError } from './MyProfilePage';
 import OvertimeSuggestions from '../../components/OvertimeSuggestions';
@@ -12,6 +12,7 @@ import OvertimeSuggestions from '../../components/OvertimeSuggestions';
 export default function MyOvertimePage() {
   const [creating, setCreating] = useState(false);
   const { data, error, loading, reload } = useFetch<OvertimeRequest[]>('/me/overtime');
+  const rules = useOvertimeRules();
   const month = todayISO().slice(0, 7);
   const monthHours = (data ?? [])
     .filter((o) => o.workDate.startsWith(month) && (o.status === 'APPROVED' || o.status === 'PENDING'))
@@ -21,7 +22,7 @@ export default function MyOvertimePage() {
     <>
       <PageHeader
         title="Làm thêm giờ"
-        subtitle={`Tháng này: ${monthHours}/40 giờ (đã duyệt + chờ duyệt)`}
+        subtitle={`Tháng này: ${monthHours}/${rules?.monthlyLimitHours ?? 40} giờ (đã duyệt + chờ duyệt)`}
         actions={!error && <button className="btn btn-primary" onClick={() => setCreating(true)}>+ Đăng ký làm thêm</button>}
       />
       <SelfServiceError error={error} />
@@ -71,7 +72,7 @@ export default function MyOvertimePage() {
           onClose={() => setCreating(false)}
           onSaved={() => { setCreating(false); reload(); }}
         >
-          {overtimeHint}
+          <OvertimeHint />
         </FormModal>
       )}
     </>
