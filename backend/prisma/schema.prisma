@@ -199,6 +199,10 @@ model Employment {
   shiftAssignments    ShiftAssignment[]
   shiftRosters        ShiftRoster[]
   pitCertificates     PitCertificate[]
+  rewardDisciplines   RewardDiscipline[]
+  trainings           TrainingParticipant[]
+  reviews             PerformanceReview[] @relation("Reviewee")
+  reviewsToDo         PerformanceReview[] @relation("Reviewer")
   isDelete            Boolean       @default(false)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
@@ -645,6 +649,7 @@ model User {
   resetTokens        PasswordResetToken[]
   reviewedLeaves LeaveRequest[] @relation("LeaveReviewer")
   reviewedOvertimes OvertimeRequest[] @relation("OvertimeReviewer")
+  notifications     Notification[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   @@map("app_user")
@@ -1106,4 +1111,140 @@ model PitCertificate {
   @@unique([year, seq])
   @@unique([employmentId, year, fromMonth, toMonth])
   @@map("pit_certificate")
+}
+
+// ---------- Khen thưởng – kỷ luật (BLLĐ 2019, Điều 124 – 129) ----------
+
+enum RewardDisciplineKind {
+  REWARD
+  DISCIPLINE
+}
+
+/// Một quyết định khen thưởng hoặc kỷ luật. Kỷ luật không được phạt tiền (Điều 127);
+/// tiền chỉ có ở khen thưởng hoặc bồi thường thiệt hại (Điều 129).
+model RewardDiscipline {
+  id             String               @id @default(uuid()) @db.Uuid
+  employmentId   String               @db.Uuid
+  employment     Employment           @relation(fields: [employmentId], references: [id])
+  kind           RewardDisciplineKind
+  form           String               // REWARD: CASH, CERTIFICATE, OTHER · DISCIPLINE: REPRIMAND, EXTEND_RAISE, DEMOTE, DISMISS
+  decisionNo     String?
+  decisionDate   DateTime             @db.Date
+  effectiveDate  DateTime             @db.Date
+  reason         String
+  amount         Decimal?             @db.Decimal(18, 4) // tiền thưởng hoặc bồi thường thiệt hại
+  /// Ngày tự xoá kỷ luật (Điều 126); null = không áp dụng / sa thải.
+  expiryDate     DateTime?            @db.Date
+  periodElementId String?             @unique @db.Uuid
+  createdById    String?              @db.Uuid
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([employmentId])
+  @@map("reward_discipline")
+}
+
+// ---------- Đào tạo ----------
+
+model TrainingCourse {
+  id           String   @id @default(uuid()) @db.Uuid
+  code         String   @unique
+  name         String
+  provider     String?
+  location     String?
+  startDate    DateTime @db.Date
+  endDate      DateTime @db.Date
+  /// Chi phí cho mỗi người (để tính bồi hoàn).
+  costPerPerson Decimal @default(0) @db.Decimal(18, 4)
+  /// Số tháng cam kết làm việc sau đào tạo (0 = không cam kết).
+  commitmentMonths Int  @default(0)
+  status       String   @default("PLANNED") // PLANNED, ONGOING, DONE, CANCELLED
+  description  String?
+  participants TrainingParticipant[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("training_course")
+}
+
+model TrainingParticipant {
+  id            String         @id @default(uuid()) @db.Uuid
+  courseId      String         @db.Uuid
+  course        TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  employmentId  String         @db.Uuid
+  employment    Employment     @relation(fields: [employmentId], references: [id])
+  result        String         @default("REGISTERED") // REGISTERED, PASSED, FAILED, ABSENT
+  score         Decimal?       @db.Decimal(5, 2)
+  certificateNo String?
+  certificateExpiry DateTime?  @db.Date
+  note          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([courseId, employmentId])
+  @@map("training_participant")
+}
+
+// ---------- Đánh giá hiệu suất ----------
+
+model ReviewCycle {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  fromDate    DateTime @db.Date
+  toDate      DateTime @db.Date
+  dueDate     DateTime @db.Date
+  status      String   @default("OPEN") // OPEN, CLOSED
+  /// Mục tiêu mẫu áp cho mọi người: [{ title, weight }]
+  goalTemplate Json
+  reviews     PerformanceReview[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("review_cycle")
+}
+
+/// Phiếu đánh giá một người trong kỳ. Luồng: SELF (tự đánh giá) → MANAGER (quản lý chấm) → DONE.
+model PerformanceReview {
+  id                   String      @id @default(uuid()) @db.Uuid
+  cycleId              String      @db.Uuid
+  cycle                ReviewCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employmentId         String      @db.Uuid
+  employment           Employment  @relation("Reviewee", fields: [employmentId], references: [id])
+  reviewerEmploymentId String?     @db.Uuid
+  reviewer             Employment? @relation("Reviewer", fields: [reviewerEmploymentId], references: [id])
+  status               String      @default("SELF") // SELF, MANAGER, DONE
+  /// [{ title, weight, selfScore, managerScore, comment }] — điểm 1..5
+  goals                Json
+  selfComment          String?
+  managerComment       String?
+  selfScore            Decimal?    @db.Decimal(4, 2)
+  finalScore           Decimal?    @db.Decimal(4, 2)
+  rating               String?     // A, B, C, D
+  submittedAt          DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  @@unique([cycleId, employmentId])
+  @@index([reviewerEmploymentId])
+  @@map("performance_review")
+}
+
+// ---------- Thông báo ----------
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Khoá chống trùng cho thông báo sinh định kỳ (vd "birthday:2026-10-02:<personId>").
+  dedupeKey String?
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt])
+  @@map("notification")
 }

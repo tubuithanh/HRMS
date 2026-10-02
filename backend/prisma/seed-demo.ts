@@ -223,6 +223,12 @@ async function main() {
     console.log('… Xoá dữ liệu nghiệp vụ cũ');
     await prisma.$transaction([
       prisma.pitCertificate.deleteMany(),
+      prisma.notification.deleteMany(),
+      prisma.performanceReview.deleteMany(),
+      prisma.reviewCycle.deleteMany(),
+      prisma.trainingParticipant.deleteMany(),
+      prisma.trainingCourse.deleteMany(),
+      prisma.rewardDiscipline.deleteMany(),
       prisma.payrollResult.deleteMany(),
       prisma.periodElement.deleteMany(),
       prisma.advanceSchedule.deleteMany(),
@@ -742,8 +748,8 @@ async function main() {
       if (['KS', 'LTV'].includes(e.job) && chance(0.15)) {
         await prisma.periodElement.create({ data: { payPeriodId: period.id, employmentId: e.id, payElementId: el('THUONG').id, amount: '2000000', note: 'Thưởng hoàn thành dự án' } });
       }
-      if (chance(0.03)) {
-        await prisma.periodElement.create({ data: { payPeriodId: period.id, employmentId: e.id, payElementId: el('PHAT').id, amount: '200000', note: 'Vi phạm nội quy' } });
+      if (chance(0.01) && el('BOI_THUONG')) {
+        await prisma.periodElement.create({ data: { payPeriodId: period.id, employmentId: e.id, payElementId: el('BOI_THUONG').id, amount: '300000', note: 'Bồi thường làm hỏng dụng cụ (biên bản)' } });
       }
     }
     const run = await payrollService.run({ payPeriodId: period.id, region: 1 });
@@ -835,6 +841,101 @@ async function main() {
       });
     }
     for (let i = 0; i < rosterRows.length; i += 1000) await prisma.shiftRoster.createMany({ data: rosterRows.slice(i, i + 1000) });
+  }
+
+  // ---------- Khen thưởng – kỷ luật, đào tạo, đánh giá ----------
+  console.log('… Khen thưởng, đào tạo, đánh giá');
+  {
+    const { rewardService } = await import('../src/modules/people/reward.service');
+    const { trainingService } = await import('../src/modules/people/training.service');
+    const { reviewService } = await import('../src/modules/people/review.service');
+    const { ratingOf, weightedScore } = await import('../src/modules/people/people.logic');
+    const hrUser = await prisma.user.findUnique({ where: { username: 'hr.demo' } });
+    const sales = active.filter((e) => ['NVKD', 'CHT', 'NVBH'].includes(e.job));
+    const workers = active.filter((e) => ['CN', 'CNKT', 'TT'].includes(e.job));
+    const ymd = (d: Date) => iso(d);
+
+    // Khen thưởng: thưởng doanh số quý 3 (tiền, vào kỳ lương tháng này), giấy khen tổ sản xuất.
+    await rewardService.create(
+      { employmentIds: sales.slice(0, 5).map((e) => e.id), kind: 'REWARD', form: 'CASH', decisionNo: `${TODAY.getUTCFullYear()}/QĐ-KT-01`, decisionDate: TODAY, effectiveDate: TODAY, reason: 'Vượt chỉ tiêu doanh số quý 3', amount: 3_000_000 },
+      hrUser?.id,
+    );
+    await rewardService.create(
+      { employmentIds: workers.slice(0, 8).map((e) => e.id), kind: 'REWARD', form: 'CERTIFICATE', decisionNo: `${TODAY.getUTCFullYear()}/QĐ-KT-02`, decisionDate: monthStart(-2), effectiveDate: monthStart(-2), reason: 'Tổ sản xuất an toàn, không sự cố 6 tháng' },
+      hrUser?.id,
+    );
+    // Kỷ luật: khiển trách (còn hiệu lực) và kéo dài nâng lương (đã hết hiệu lực).
+    await rewardService.create(
+      { employmentIds: [workers[10].id], kind: 'DISCIPLINE', form: 'REPRIMAND', decisionNo: `${TODAY.getUTCFullYear()}/QĐ-KL-01`, decisionDate: monthStart(-1), effectiveDate: monthStart(-1), reason: 'Đi muộn nhiều lần trong tháng, đã nhắc nhở bằng văn bản', amount: 0 },
+      hrUser?.id,
+    );
+    await rewardService.create(
+      { employmentIds: [workers[11].id], kind: 'DISCIPLINE', form: 'EXTEND_RAISE', decisionNo: `${TODAY.getUTCFullYear() - 1}/QĐ-KL-03`, decisionDate: utc(TODAY.getUTCFullYear() - 1, 1, 10), effectiveDate: utc(TODAY.getUTCFullYear() - 1, 1, 10), reason: 'Vi phạm quy trình an toàn lao động gây hỏng thiết bị', amount: 1_500_000 },
+      hrUser?.id,
+    );
+
+    // Đào tạo
+    const safety = await trainingService.create({ code: 'ATLĐ-26', name: 'Huấn luyện an toàn lao động nhóm 3', provider: 'Trung tâm Huấn luyện ATVSLĐ Bình Dương', location: 'Nhà máy', startDate: monthStart(-4), endDate: addDays(monthStart(-4), 2), costPerPerson: 450_000, commitmentMonths: 0, status: 'DONE' });
+    await trainingService.addParticipants(safety.id, workers.slice(0, 20).map((e) => e.id));
+    const pm = await trainingService.create({ code: 'PMP-26', name: 'Quản lý dự án chuyên nghiệp (PMP)', provider: 'PMI Việt Nam', location: 'TP.HCM', startDate: monthStart(-6), endDate: addDays(monthStart(-5), 20), costPerPerson: 36_000_000, commitmentMonths: 24, status: 'DONE', description: 'Cam kết làm việc 24 tháng sau khoá học; nghỉ trước hạn bồi hoàn theo tỷ lệ thời gian còn lại.' });
+    const pmPeople = active.filter((e) => ['KS', 'LTV', 'TP'].includes(e.job)).slice(0, 4);
+    await trainingService.addParticipants(pm.id, pmPeople.map((e) => e.id));
+    const excel = await trainingService.create({ code: 'EXCEL-26', name: 'Excel nâng cao cho văn phòng', provider: 'Nội bộ', location: 'Phòng họp tầng 3', startDate: addDays(TODAY, 10), endDate: addDays(TODAY, 11), costPerPerson: 0, commitmentMonths: 0, status: 'PLANNED' });
+    await trainingService.addParticipants(excel.id, active.filter((e) => e.office).slice(0, 12).map((e) => e.id));
+    const parts = await prisma.trainingParticipant.findMany({ where: { courseId: { in: [safety.id, pm.id] } } });
+    for (const [i, p] of parts.entries()) {
+      const passed = i % 9 !== 0;
+      await prisma.trainingParticipant.update({
+        where: { id: p.id },
+        data: { result: passed ? 'PASSED' : 'FAILED', score: String(passed ? int(70, 98) : int(40, 60)), certificateNo: passed ? `CC-${String(1000 + i)}` : null, certificateExpiry: passed && p.courseId === safety.id ? addDays(monthStart(-4), 730) : null },
+      });
+    }
+
+    // Đánh giá: kỳ 6 tháng đầu năm (đã xong), kỳ quý 3 (đang làm, đủ các trạng thái).
+    const goalsSales = [
+      { title: 'Doanh số so với chỉ tiêu', weight: 50 },
+      { title: 'Khách hàng mới', weight: 20 },
+      { title: 'Chăm sóc khách hàng, công nợ', weight: 20 },
+      { title: 'Tuân thủ nội quy', weight: 10 },
+    ];
+    const y = TODAY.getUTCFullYear();
+    for (const [name, from, to, due, finish] of [
+      [`Đánh giá 6 tháng đầu năm ${y}`, utc(y, 0, 1), utc(y, 5, 30), utc(y, 6, 15), 1],
+      [`Đánh giá quý 3/${y}`, utc(y, 6, 1), utc(y, 8, 30), addDays(TODAY, 14), 0.45],
+    ] as Array<[string, Date, Date, Date, number]>) {
+      const cycle = await reviewService.createCycle({ name, fromDate: from, toDate: to, dueDate: due, goalTemplate: goalsSales });
+      const reviews = await prisma.performanceReview.findMany({ where: { cycleId: cycle.id } });
+      for (const [i, r] of reviews.entries()) {
+        const stage = finish === 1 ? 2 : rand() < finish ? 2 : rand() < 0.5 ? 1 : 0; // 0 SELF, 1 MANAGER, 2 DONE
+        if (stage === 0) continue;
+        const base = 2.5 + rand() * 2.5;
+        const goals = goalsSales.map((g) => ({
+          ...g,
+          selfScore: Math.min(5, Math.max(1, Math.round((base + rand() - 0.3) * 2) / 2)),
+          managerScore: stage === 2 ? Math.min(5, Math.max(1, Math.round((base + rand() - 0.6) * 2) / 2)) : null,
+          comment: null,
+        }));
+        const self = weightedScore(goals, 'selfScore');
+        const fin = stage === 2 ? weightedScore(goals, 'managerScore') : null;
+        await prisma.performanceReview.update({
+          where: { id: r.id },
+          data: {
+            goals,
+            selfScore: self === null ? null : String(self),
+            selfComment: i % 4 === 0 ? 'Hoàn thành tốt mục tiêu chính, cần cải thiện công nợ.' : null,
+            status: stage === 2 ? 'DONE' : 'MANAGER',
+            submittedAt: addDays(due, -int(3, 10)),
+            ...(fin !== null ? { finalScore: String(fin), rating: ratingOf(fin), completedAt: addDays(due, -int(0, 2)), managerComment: 'Đồng ý với kết quả tự đánh giá.' } : {}),
+          },
+        });
+      }
+      if (finish === 1) await prisma.reviewCycle.update({ where: { id: cycle.id }, data: { status: 'CLOSED' } });
+    }
+    void ymd;
+    // Tài khoản demo tạo sau khi khoá kỳ → gửi lại thông báo phiếu lương kỳ gần nhất.
+    const { events } = await import('../src/modules/notification/events');
+    const lastLocked = await prisma.payPeriod.findFirst({ where: { status: 'LOCKED' }, orderBy: { dateEnd: 'desc' } });
+    if (lastLocked) await events.payrollLocked(lastLocked.id, lastLocked.code);
   }
 
   // ---------- Tổng kết ----------

@@ -4,6 +4,8 @@ import { useFetch } from '../../lib/hooks';
 import { date, labels } from '../../lib/format';
 import { Employment, Person } from '../../types/models';
 import { EmploymentStatus } from '../persons/PersonsPage';
+import { RewardsTable, TrainingRow, TrainingsTable } from '../people/PersonPeopleTab';
+import { RewardRow } from '../people/RewardsPage';
 
 type Profile = Person & {
   employments: Array<Employment & { company: { name: string } }>;
@@ -62,6 +64,7 @@ export default function MyProfilePage() {
               ]}
             />
           </Card>
+          <MyRewardsAndTrainings />
           <Card title="Người phụ thuộc (giảm trừ gia cảnh)" flush>
             <DataTable
               rows={p.dependants}
@@ -76,6 +79,21 @@ export default function MyProfilePage() {
           </Card>
         </div>
       )}
+    </>
+  );
+}
+
+function MyRewardsAndTrainings() {
+  const rewards = useFetch<RewardRow[]>('/me/rewards');
+  const trainings = useFetch<TrainingRow[]>('/me/trainings');
+  return (
+    <>
+      <Card title="Khen thưởng – kỷ luật" flush>
+        <RewardsTable rows={rewards.data} loading={rewards.loading} />
+      </Card>
+      <Card title="Đào tạo" flush>
+        <TrainingsTable rows={trainings.data} loading={trainings.loading} />
+      </Card>
     </>
   );
 }

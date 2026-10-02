@@ -5,6 +5,7 @@ import { todayDate } from '../../common/utils/dates';
 import { AuthUser } from '../auth/token';
 import { computeManagers } from './manager.logic';
 import { getSettings } from '../settings/settings.service';
+import { events, leaveSummary, overtimeSummary } from '../notification/events';
 
 /** Bản đồ nhân viên → quản lý trực tiếp, tính trên toàn bộ tổ chức hiện tại. */
 export async function loadManagerMap() {
@@ -94,12 +95,15 @@ export const approvalService = {
       throw new ConflictError('Đơn không còn ở bước quản lý duyệt');
     }
     const now = new Date();
-    return delegate.update({
+    const updated = (await delegate.update({
       where: { id },
       data: approve
         ? { approvalStage: 'HR', managerReviewedById: user.id, managerReviewedAt: now, managerNote: note ?? null }
         : { status: 'REJECTED', managerReviewedById: user.id, managerReviewedAt: now, managerNote: note ?? null, reviewedById: user.id, reviewedAt: now, reviewNote: note ?? null },
-    });
+    })) as { employmentId: string; fromDate?: Date; toDate?: Date; days?: unknown; workDate?: Date; hours?: unknown };
+    const summary = kind === 'leave' ? leaveSummary(updated as Parameters<typeof leaveSummary>[0]) : overtimeSummary(updated as Parameters<typeof overtimeSummary>[0]);
+    void events.managerReviewed(kind, { employmentId: updated.employmentId, summary }, approve, note);
+    return updated;
   },
 
   /** Nhân viên mà người này là quản lý trực tiếp, kèm tình trạng hôm nay. */

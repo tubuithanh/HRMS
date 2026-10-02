@@ -15,6 +15,7 @@ import auditRoutes from './modules/audit/audit.routes';
 import settingsRoutes from './modules/settings/settings.routes';
 import shiftRoutes from './modules/shift/shift.routes';
 import reportRoutes from './modules/reports/reports.routes';
+import peopleRoutes from './modules/people/people.routes';
 
 /**
  * Phân quyền theo phân hệ: `write` được mọi phương thức,
@@ -48,6 +49,8 @@ router.use('/attendance', requireAuth, access(['HR'], ['ACCOUNTANT']), attendanc
 router.use('/shifts', requireAuth, access(['HR'], ['ACCOUNTANT']), shiftRoutes);
 // Báo cáo BHXH, thuế TNCN, chuyển lương: kế toán lập, nhân sự xem
 router.use('/reports', requireAuth, access(['ACCOUNTANT'], ['HR']), reportRoutes);
+// Khen thưởng – kỷ luật, đào tạo, đánh giá: nhân sự ghi, kế toán xem
+router.use('/people', requireAuth, access(['HR'], ['ACCOUNTANT']), peopleRoutes);
 router.use('/recruitment', requireAuth, access(['HR']), recruitmentRoutes);
 // Nhập / xuất Excel: phân quyền theo từng route bên trong
 router.use('/import', requireAuth, importRoutes);

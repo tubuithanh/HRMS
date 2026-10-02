@@ -7,6 +7,7 @@ import { useFetch } from '../../lib/hooks';
 import { date, labels } from '../../lib/format';
 import { Employment, Person } from '../../types/models';
 import { personFields } from './PersonsPage';
+import PersonPeopleTab from '../people/PersonPeopleTab';
 import EmploymentsTab from './EmploymentsTab';
 import SubResourceTab from './SubResourceTab';
 import { subResources } from './subResources';
@@ -55,6 +56,7 @@ export default function PersonDetailPage() {
         tabs={[
           { key: 'info', label: 'Thông tin' },
           { key: 'employment', label: `Hợp đồng & lương (${p.employments.length})` },
+          { key: 'people', label: 'Khen thưởng & đào tạo' },
           ...subResources.map((s) => ({ key: s.key, label: s.title })),
         ]}
         active={tab}
@@ -85,6 +87,7 @@ export default function PersonDetailPage() {
       {tab === 'employment' && (
         <EmploymentsTab personId={p.id} employmentIds={p.employments.map((e) => e.id)} onChanged={reload} />
       )}
+      {tab === 'people' && <PersonPeopleTab employmentIds={p.employments.map((e) => e.id)} />}
       {subResources.map((s) => tab === s.key && <SubResourceTab key={s.key} personId={p.id} config={s} />)}
 
       {editing && (

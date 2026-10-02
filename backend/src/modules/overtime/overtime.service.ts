@@ -7,6 +7,7 @@ import { ForbiddenError } from '../../common/middleware/auth';
 import { formatDate, monthRange, todayDate } from '../../common/utils/dates';
 import { AuthUser } from '../auth/token';
 import { multiplierOf, overtimeTypeOf, validateOvertime } from './overtime.logic';
+import { events, overtimeSummary } from '../notification/events';
 import { initialApproval } from '../approval/approval.service';
 
 // ---------- Schema ----------
@@ -112,7 +113,7 @@ export const overtimeService = {
     if (error) throw new ValidationError(error);
 
     const approval = await initialApproval(employmentId, viaHr);
-    return prisma.overtimeRequest.create({
+    const created = await prisma.overtimeRequest.create({
       data: {
         ...approval,
         employmentId,
@@ -125,6 +126,8 @@ export const overtimeService = {
       },
       include,
     });
+    void events.requestSubmitted('overtime', { ...created, summary: overtimeSummary(created) });
+    return created;
   },
 
   async review(id: string, reviewer: AuthUser, approve: boolean, note?: string) {
@@ -144,11 +147,13 @@ export const overtimeService = {
     if (locked && approve) {
       throw new AppError(`Kỳ lương ${locked.code} đã khoá, không thể duyệt làm thêm giờ của kỳ này`, 409, 'PERIOD_LOCKED');
     }
-    return prisma.overtimeRequest.update({
+    const updated = await prisma.overtimeRequest.update({
       where: { id },
       data: { status: approve ? 'APPROVED' : 'REJECTED', reviewedById: reviewer.id, reviewedAt: new Date(), reviewNote: note },
       include,
     });
+    void events.finalReviewed('overtime', { employmentId: updated.employmentId, summary: overtimeSummary(updated) }, approve, note);
+    return updated;
   },
 
   async cancel(id: string, ownEmploymentId?: string) {

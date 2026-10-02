@@ -14,6 +14,10 @@ import PayrollPage from './pages/payroll/PayrollPage';
 import PeriodDetailPage from './pages/payroll/PeriodDetailPage';
 import ReportsPage from './pages/payroll/ReportsPage';
 import ShiftsPage from './pages/attendance/ShiftsPage';
+import RewardsPage from './pages/people/RewardsPage';
+import TrainingsPage, { TrainingDetailPage } from './pages/people/TrainingsPage';
+import ReviewsPage, { ReviewCyclePage } from './pages/people/ReviewsPage';
+import MyReviewsPage from './pages/me/MyReviewsPage';
 import LeaveAdminPage from './pages/leave/LeaveAdminPage';
 import TimesheetPage from './pages/attendance/TimesheetPage';
 import OvertimeAdminPage from './pages/attendance/OvertimeAdminPage';
@@ -77,6 +81,7 @@ function AppRoutes() {
         <Route path="me/overtime" element={<MyOvertimePage />} />
         <Route path="me/approvals" element={<MyApprovalsPage />} />
         <Route path="me/team" element={<MyTeamPage />} />
+        <Route path="me/reviews" element={<MyReviewsPage />} />
 
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="persons" element={staff(<PersonsPage />)} />
@@ -87,6 +92,11 @@ function AppRoutes() {
         <Route path="overtime" element={staff(<OvertimeAdminPage />)} />
         <Route path="holidays" element={staff(<HolidaysPage />)} />
         <Route path="shifts" element={staff(<ShiftsPage />)} />
+        <Route path="rewards" element={staff(<RewardsPage />)} />
+        <Route path="trainings" element={staff(<TrainingsPage />)} />
+        <Route path="trainings/:id" element={staff(<TrainingDetailPage />)} />
+        <Route path="reviews" element={staff(<ReviewsPage />)} />
+        <Route path="reviews/:id" element={staff(<ReviewCyclePage />)} />
         <Route path="payroll" element={staff(<PayrollPage />)} />
         <Route path="payroll/:id" element={staff(<PeriodDetailPage />)} />
         <Route path="reports" element={staff(<ReportsPage />)} />

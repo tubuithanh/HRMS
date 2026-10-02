@@ -102,6 +102,17 @@ hồ sơ nhân sự thì mới dùng được phần này.
   - *File chuyển lương*: theo **mẫu file** kế toán tự khai báo cho từng ngân hàng (thứ tự cột, tên cột, Excel hoặc CSV UTF-8,
     tách cùng / khác ngân hàng, có / không dòng tiêu đề). Tên người hưởng in hoa không dấu, số tài khoản giữ số 0 đầu,
     liệt kê người thiếu số tài khoản. Số tài khoản, ngân hàng, chi nhánh khai trong hồ sơ nhân sự.
+- **Khen thưởng – kỷ luật** (BLLĐ 2019): một quyết định cho một hoặc nhiều người; hình thức kỷ luật theo Điều 124,
+  tự tính ngày xoá kỷ luật theo Điều 126 (khiển trách 3 tháng, kéo dài nâng lương 6 tháng, cách chức 3 năm).
+  Không có phạt tiền (Điều 127): tiền chỉ ở thưởng (khoản THUONG) hoặc bồi thường thiệt hại (khoản BOI_THUONG, Điều 129),
+  tự đưa vào kỳ lương đang mở.
+- **Đào tạo:** khoá học, học viên, kết quả, chứng chỉ (hạn hiệu lực), chi phí và cam kết làm việc sau khoá học.
+  Nghỉ việc trước hết cam kết → bồi hoàn theo tỷ lệ thời gian còn lại, tự trừ vào kỳ lương cuối khi Cho nghỉ việc.
+- **Đánh giá hiệu suất:** kỳ đánh giá với mục tiêu có trọng số (tổng 100); nhân viên tự đánh giá → quản lý trực tiếp chấm
+  (người không có quản lý do nhân sự chấm) → điểm bình quân gia quyền, xếp loại A ≥ 4,5 · B ≥ 3,5 · C ≥ 2,5 · D.
+  Nhân viên chỉ thấy điểm của quản lý khi phiếu hoàn tất.
+- **Thông báo:** chuông trên menu (+ email nếu cấu hình SMTP) — đơn chờ duyệt, kết quả duyệt, phiếu lương mới, khen thưởng /
+  kỷ luật, được cử đi học, việc cần đánh giá; nhân sự được nhắc hợp đồng hết hạn trong 30 ngày và sinh nhật.
 - **Tuyển dụng:** tin tuyển dụng, ứng viên theo vòng, nhận việc → tạo hồ sơ nhân sự.
 - **Nhập / xuất Excel:** nhân viên mới, điều chỉnh lương, chấm công theo file mẫu; kiểm tra từng dòng,
   chỉ nhập khi không còn lỗi (tất cả hoặc không dòng nào). Xuất danh sách nhân sự.

@@ -6,6 +6,7 @@ import { formatDate } from '../../common/utils/dates';
 import { pickEffective } from '../../common/utils/effectiveDating';
 import { calcFinalSettlement } from '../payroll/final-settlement';
 import { leaveService } from '../leave/leave.service';
+import { trainingService } from '../people/training.service';
 import {
   estimateInsuredMonths,
   fullMonthsBetween,
@@ -38,6 +39,8 @@ export const offboardSchema = z.object({
   unemploymentInsuredMonths: z.number().int().min(0),
   avgSalary6Months: z.number().nonnegative(),
   unusedLeaveDays: z.number().min(0),
+  /** Bồi hoàn chi phí đào tạo (còn trong thời gian cam kết) — trừ vào kỳ lương cuối. */
+  trainingRefund: z.number().min(0).default(0),
 });
 
 export type OffboardInput = z.infer<typeof offboardSchema>;
@@ -112,11 +115,11 @@ async function lockedUntil() {
   return p?.dateEnd ?? null;
 }
 
-async function ensureElement(code: string, name: string, taxTreatment: 'TAXABLE' | 'EXEMPT') {
+async function ensureElement(code: string, name: string, taxTreatment: 'TAXABLE' | 'EXEMPT', type: 'EARNING' | 'DEDUCTION' = 'EARNING') {
   return prisma.payElement.upsert({
     where: { code },
     update: {},
-    create: { code, name, type: 'EARNING', taxTreatment, isInsuranceBase: false, isProrated: false },
+    create: { code, name, type, taxTreatment, isInsuranceBase: false, isProrated: false },
   });
 }
 
@@ -139,6 +142,7 @@ export const offboardingService = {
       account: emp.person.user,
       period: period ? { id: period.id, code: period.code, status: period.status } : null,
       lockedUntil: await lockedUntil(),
+      trainingRefunds: await trainingService.refundsOnLeave(id, date),
     };
   },
 
@@ -155,12 +159,13 @@ export const offboardingService = {
     const result = settle(input.type, input);
     const period = await prisma.payPeriod.findFirst({ where: { dateStart: { lte: date }, dateEnd: { gte: date } } });
     const canPay = input.includeInPayroll && period && period.status !== 'LOCKED' && period.status !== 'PAID';
-    const [severanceEl, leaveEl] = canPay
+    const [severanceEl, leaveEl, refundEl] = canPay
       ? await Promise.all([
           ensureElement('TRO_CAP_TV', 'Trợ cấp thôi việc / mất việc', 'EXEMPT'),
           ensureElement('THANH_TOAN_PHEP', 'Thanh toán phép năm chưa nghỉ', 'TAXABLE'),
+          ensureElement('BOI_HOAN_DT', 'Bồi hoàn chi phí đào tạo', 'EXEMPT', 'DEDUCTION'),
         ])
-      : [null, null];
+      : [null, null, null];
 
     const summary = await prisma.$transaction(async (tx) => {
       await tx.employment.update({
@@ -217,6 +222,11 @@ export const offboardingService = {
         if (Number(result.unusedLeaveAmount) > 0) {
           await tx.periodElement.create({
             data: { payPeriodId: period.id, employmentId: id, payElementId: leaveEl!.id, amount: result.unusedLeaveAmount, note: `${input.unusedLeaveDays} ngày phép chưa nghỉ` },
+          });
+        }
+        if (input.trainingRefund > 0) {
+          await tx.periodElement.create({
+            data: { payPeriodId: period.id, employmentId: id, payElementId: refundEl!.id, amount: input.trainingRefund.toFixed(4), note: 'Nghỉ việc trước hết thời gian cam kết đào tạo' },
           });
         }
         paidIn = period.code;

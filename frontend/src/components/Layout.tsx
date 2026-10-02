@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Role, roleLabels, useAuth } from '../auth';
 import { useFetch } from '../lib/hooks';
+import NotificationBell from './NotificationBell';
 
 interface NavItem {
   to: string;
@@ -29,6 +30,9 @@ const menu: Array<NavItem | NavGroup> = [
       { to: '/persons', label: 'Hồ sơ nhân sự', icon: 'bi-person-vcard', roles: STAFF },
       { to: '/org', label: 'Tổ chức', icon: 'bi-diagram-3', roles: STAFF },
       { to: '/recruitment', label: 'Tuyển dụng', icon: 'bi-person-plus', roles: ['ADMIN', 'HR'] },
+      { to: '/rewards', label: 'Khen thưởng – kỷ luật', icon: 'bi-award', roles: STAFF },
+      { to: '/trainings', label: 'Đào tạo', icon: 'bi-mortarboard', roles: STAFF },
+      { to: '/reviews', label: 'Đánh giá hiệu suất', icon: 'bi-graph-up-arrow', roles: STAFF },
     ],
   },
   {
@@ -60,6 +64,7 @@ const menu: Array<NavItem | NavGroup> = [
       { to: '/me/overtime', label: 'Làm thêm giờ', icon: 'bi-moon-stars' },
       { to: '/me/approvals', label: 'Duyệt của tôi', icon: 'bi-inbox', managerOnly: true },
       { to: '/me/team', label: 'Nhân viên của tôi', icon: 'bi-people-fill', managerOnly: true },
+      { to: '/me/reviews', label: 'Đánh giá', icon: 'bi-clipboard-check' },
       { to: '/me/payslips', label: 'Phiếu lương', icon: 'bi-receipt' },
     ],
   },
@@ -190,7 +195,8 @@ export default function Layout() {
               })}
             </ul>
 
-            <ul className="navbar-nav">
+            <ul className="navbar-nav align-items-lg-center">
+              <NotificationBell />
               <Dropdown
                 align="end"
                 label={

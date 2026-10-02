@@ -13,6 +13,10 @@ import { overtimeService, selfOvertimeSchema } from '../overtime/overtime.servic
 import { approvalService } from '../approval/approval.service';
 import { reviewLeaveSchema } from '../leave/leave.schema';
 import { pitCertificateService } from '../reports/pit-certificate';
+import { notificationService } from '../notification/notification.service';
+import { managerSchema, reviewService, selfSchema } from '../people/review.service';
+import { rewardService } from '../people/reward.service';
+import { trainingService } from '../people/training.service';
 
 /**
  * Tự phục vụ cho mọi tài khoản đã đăng nhập: xem hồ sơ, phiếu lương,
@@ -273,6 +277,62 @@ router.get(
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="chung-tu-khau-tru-TNCN.pdf"');
     res.send(pdf);
+  }),
+);
+
+// ---------- Thông báo ----------
+router.get(
+  '/notifications',
+  asyncHandler(async (req, res) => {
+    res.json({ data: await notificationService.list(req.user!) });
+  }),
+);
+
+router.get(
+  '/notifications/unread-count',
+  asyncHandler(async (req, res) => {
+    res.json({ data: { unread: await notificationService.unreadCount(req.user!) } });
+  }),
+);
+
+/** POST /api/me/notifications/read — { ids?: string[] }; bỏ trống = đánh dấu tất cả đã đọc. */
+router.post(
+  '/notifications/read',
+  asyncHandler(async (req, res) => {
+    const ids = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).filter((x): x is string => typeof x === 'string') : undefined;
+    res.json({ data: await notificationService.markRead(req.user!, ids) });
+  }),
+);
+
+// ---------- Đánh giá hiệu suất (nhân viên tự đánh giá, quản lý chấm) ----------
+router.get('/reviews', asyncHandler(async (req, res) => res.json({ data: await reviewService.mine(req.user!) })));
+router.get('/reviews/:id', asyncHandler(async (req, res) => res.json({ data: await reviewService.get(req.params.id, req.user!) })));
+router.put(
+  '/reviews/:id/self',
+  asyncHandler(async (req, res) => {
+    res.json({ data: await reviewService.saveSelf(req.params.id, req.user!, selfSchema.parse(req.body)) });
+  }),
+);
+router.put(
+  '/reviews/:id/manager',
+  asyncHandler(async (req, res) => {
+    res.json({ data: await reviewService.saveManager(req.params.id, req.user!, managerSchema.parse(req.body)) });
+  }),
+);
+
+// ---------- Khen thưởng – kỷ luật, đào tạo của tôi ----------
+router.get(
+  '/rewards',
+  asyncHandler(async (req, res) => {
+    const employmentId = await myEmploymentId(req);
+    res.json({ data: await rewardService.list({ employmentId }) });
+  }),
+);
+router.get(
+  '/trainings',
+  asyncHandler(async (req, res) => {
+    const employmentId = await myEmploymentId(req);
+    res.json({ data: await trainingService.history(employmentId) });
   }),
 );
 

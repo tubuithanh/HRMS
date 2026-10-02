@@ -32,6 +32,7 @@ interface Preview {
   account: { username: string; isActive: boolean } | null;
   period: { code: string; status: string } | null;
   lockedUntil: string | null;
+  trainingRefunds: { items: Array<{ courseId: string; code: string; name: string; commitmentEnd: string; refund: number }>; total: number };
 }
 
 /**
@@ -88,6 +89,7 @@ export default function OffboardModal(props: { employmentId: string; onClose: ()
         note: note || undefined,
         lockAccount,
         includeInPayroll,
+        trainingRefund: p?.trainingRefunds.total ?? 0,
         ...figures,
       });
       const r = res.data.data;
@@ -166,6 +168,16 @@ export default function OffboardModal(props: { employmentId: string; onClose: ()
                 </tr>
               </tbody>
             </table>
+            {p.trainingRefunds.total > 0 && (
+              <div className="alert alert-warning small py-2">
+                Bồi hoàn chi phí đào tạo (chưa hết thời gian cam kết): <strong>{money(p.trainingRefunds.total)}đ</strong> — trừ vào kỳ lương cuối.
+                <ul className="mb-0 mt-1">
+                  {p.trainingRefunds.items.map((t) => (
+                    <li key={t.courseId}>{t.code} · {t.name}: {money(t.refund)}đ (cam kết đến {date(t.commitmentEnd)})</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {p.suggested.remainingAdvance > 0 && (
               <div className="alert alert-warning small py-2">Còn {money(p.suggested.remainingAdvance)}đ tạm ứng chưa trừ — sẽ trừ hết trong kỳ lương cuối.</div>
             )}

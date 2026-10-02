@@ -11,6 +11,7 @@ import { ForbiddenError } from '../../common/middleware/auth';
 import { todayDate, yearRange } from '../../common/utils/dates';
 import { AuthUser } from '../auth/token';
 import { holidaySet } from '../overtime/overtime.service';
+import { events, leaveSummary } from '../notification/events';
 import { initialApproval } from '../approval/approval.service';
 import { calcLeaveDays } from './leave.logic';
 import { annualEntitlement, availableDays, Usage } from './entitlement.logic';
@@ -226,7 +227,7 @@ export const leaveService = {
     }
 
     const approval = await initialApproval(employmentId, viaHr);
-    return prisma.leaveRequest.create({
+    const created = await prisma.leaveRequest.create({
       data: {
         ...approval,
         employmentId,
@@ -240,6 +241,8 @@ export const leaveService = {
       },
       include: requestInclude,
     });
+    void events.requestSubmitted('leave', { ...created, summary: `${type.name} ${leaveSummary(created)}` });
+    return created;
   },
 
   async review(id: string, reviewer: AuthUser, approve: boolean, note?: string) {
@@ -255,7 +258,7 @@ export const leaveService = {
     if (reviewer.role !== 'ADMIN' && reviewer.personId === req.employment.personId) {
       throw new ForbiddenError('Không thể tự duyệt đơn nghỉ của chính mình');
     }
-    return prisma.leaveRequest.update({
+    const updated = await prisma.leaveRequest.update({
       where: { id },
       data: {
         status: approve ? 'APPROVED' : 'REJECTED',
@@ -265,6 +268,8 @@ export const leaveService = {
       },
       include: requestInclude,
     });
+    void events.finalReviewed('leave', { employmentId: updated.employmentId, summary: `${updated.leaveType.name} ${leaveSummary(updated)}` }, approve, note);
+    return updated;
   },
 
   /**

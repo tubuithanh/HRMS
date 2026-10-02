@@ -160,6 +160,9 @@ async function main() {
     { code: 'TRUY_LINH', name: 'Truy lĩnh lương', type: 'EARNING', taxTreatment: 'TAXABLE', isInsuranceBase: false, isProrated: false },
     { code: 'PHAT', name: 'Phạt vi phạm', type: 'DEDUCTION', taxTreatment: 'TAXABLE', isInsuranceBase: false, isProrated: false },
     { code: 'TRUY_THU', name: 'Truy thu', type: 'DEDUCTION', taxTreatment: 'TAXABLE', isInsuranceBase: false, isProrated: false },
+    // Khấu trừ bồi thường thiệt hại (Điều 129 BLLĐ 2019) — tối đa 30% lương thực trả mỗi tháng.
+    { code: 'BOI_THUONG', name: 'Bồi thường thiệt hại', type: 'DEDUCTION', taxTreatment: 'EXEMPT', isInsuranceBase: false, isProrated: false },
+    { code: 'BOI_HOAN_DT', name: 'Bồi hoàn chi phí đào tạo', type: 'DEDUCTION', taxTreatment: 'EXEMPT', isInsuranceBase: false, isProrated: false },
   ];
   for (const e of elements) {
     await prisma.payElement.upsert({ where: { code: e.code }, update: {}, create: e });

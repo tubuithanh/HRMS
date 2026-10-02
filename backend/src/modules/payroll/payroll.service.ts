@@ -1,3 +1,4 @@
+import { events } from '../notification/events';
 import { Prisma } from '@prisma/client';
 import { prisma, TxClient } from '../../config/prisma';
 import { ConflictError, NotFoundError } from '../../common/errors/AppError';
@@ -489,9 +490,11 @@ export const payrollService = {
     if (period.status === 'OPEN') {
       throw new ConflictError('Chưa tính lương thì chưa thể khóa');
     }
-    return prisma.payPeriod.update({
+    const locked = await prisma.payPeriod.update({
       where: { id: payPeriodId },
       data: { status: 'LOCKED' },
     });
+    void events.payrollLocked(locked.id, locked.code);
+    return locked;
   },
 };
