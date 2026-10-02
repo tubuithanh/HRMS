@@ -61,7 +61,8 @@ export default function MailSettingsCard() {
   useEffect(() => {
     if (!data) return;
     setValues({
-      provider: data.provider,
+      // Chưa cấu hình gì → mở sẵn phần Gmail OAuth2.
+      provider: data.provider === 'ENV' && !data.status.configured ? 'GMAIL' : data.provider,
       fromName: data.fromName,
       gmailUser: data.gmailUser,
       clientId: data.clientId,
@@ -168,7 +169,7 @@ export default function MailSettingsCard() {
 
   const st = data.status;
   return (
-    <Card title={<h2 className="h6 mb-0"><i className="bi bi-envelope me-2 text-primary" />Gửi email</h2>}>
+    <Card title={<h2 className="h6 mb-0"><i className="bi bi-envelope me-2 text-primary" />Gửi email — Gmail OAuth2 / SMTP</h2>}>
       <dl className="kv small mb-3">
         <dt>Đang dùng</dt>
         <dd>
