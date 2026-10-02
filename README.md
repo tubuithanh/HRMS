@@ -41,8 +41,9 @@ npm run seed:demo -- --reset    # XOÁ dữ liệu nghiệp vụ rồi tạo t�
 ```
 
 Tạo Tập đoàn ATECH đa ngành (Văn phòng, Sản xuất, Thương mại, Dịch vụ – Logistics,
-Xây dựng) với ~150 nhân sự giả: hợp đồng, lương, phụ cấp, chấm công và nghỉ phép
-3 tháng gần nhất, 4 kỳ lương, tạm ứng, tuyển dụng. Tài khoản demo (mật khẩu
+Xây dựng) với ~150 nhân sự giả: hợp đồng, lương, phụ cấp, tài khoản ngân hàng, chấm công và nghỉ phép
+3 tháng gần nhất, kỳ lương từ tháng 1 năm nay (đủ số liệu cho quyết toán thuế), ca làm việc và lịch xoay ca
+khối sản xuất, tạm ứng, tuyển dụng. Tài khoản demo (mật khẩu
 `Demo@12345`): `hr.demo`, `ketoan.demo`, `nhanvien.demo`, `kinhdoanh.demo`.
 **Chỉ dùng cho môi trường thử — không chạy trên database thật.**
 
@@ -76,7 +77,10 @@ hồ sơ nhân sự thì mới dùng được phần này.
 
 - **Nhân sự:** hồ sơ, quá trình làm việc, hợp đồng lao động và phụ lục (kiểm tra theo BLLĐ 2019, cảnh báo sắp hết hạn), vị trí, lương cơ bản, hồ sơ thuế, người phụ thuộc, giấy tờ.
 - **Tổ chức:** cây phòng ban, chức danh, vị trí định biên.
-- **Chấm công:** nhân viên tự chấm vào/ra (sau 8:30 là đi muộn), nhân sự nhập/sửa, bảng công tháng.
+- **Chấm công:** nhân viên tự chấm vào/ra, nhân sự nhập/sửa, bảng công tháng. Đi muộn tính theo giờ bắt đầu ca
+  (không có ca thì theo giờ hành chính trong Cấu hình). Máy chủ luôn dùng giờ Việt Nam (`TZ=Asia/Ho_Chi_Minh`).
+- **Ca làm việc:** danh mục ca (kể cả ca qua đêm), ca mặc định theo ngày hiệu lực (áp thứ 2 – thứ 6), lịch ca từng ngày
+  (bấm ô để đổi), xoay ca theo chu kỳ cho nhóm người (chia tổ lệch ca). Ca đêm: chấm ra sáng hôm sau vẫn đóng đúng ngày công.
 - **Ngày lễ & làm thêm giờ:** danh mục ngày lễ (tự tính vào bảng công, không trừ phép); đơn làm thêm
   giờ theo BLLĐ 2019 — 150/200/300% (đêm 210/270/390%), tối đa 4h ngày thường, 12h ngày nghỉ, 40h/tháng;
   phần vượt lương giờ bình thường miễn thuế TNCN.
@@ -87,6 +91,17 @@ hồ sơ nhân sự thì mới dùng được phần này.
   quyết toán trợ cấp thôi việc / mất việc (từ đủ 12 tháng, trừ thời gian đóng BHTN) và tiền phép chưa nghỉ
   vào kỳ lương cuối; tạm ứng còn nợ được trừ hết ở kỳ cuối.
 - **Tính lương:** khoản lương (phụ cấp cố định, thưởng/phạt trong kỳ), tạm ứng trả dần, tính theo ngày công, kỳ lương, chạy lương, khoá kỳ, phiếu lương PDF, bảng lương Excel, Net → Gross, lương tháng 13, quyết toán nghỉ việc.
+- **Báo cáo BHXH – Thuế – Chuyển lương** (Tính lương → Báo cáo), xem trên web và tải Excel:
+  - *D02-LT*: lao động tăng / giảm / điều chỉnh mức đóng BH, so kỳ lương tháng này với tháng trước (cần chạy lương cả hai tháng).
+  - *05/KK-TNCN* theo tháng hoặc quý: chỉ tiêu [21] – [35]; cá nhân cư trú / không cư trú theo cách tính thuế (biểu 20% = không cư trú).
+  - *Quyết toán thuế năm* (05/QTT, phụ lục 05-1, 05-2): tính lại thuế năm theo biểu lũy tiến (mốc × 12), giảm trừ bản thân đủ 12 tháng,
+    so với số đã khấu trừ → còn phải nộp / nộp thừa.
+  - *Chứng từ khấu trừ thuế TNCN* (nội dung theo Điều 32 NĐ 123/2020): lập cho mọi người bị khấu trừ trong khoảng tháng,
+    đánh số tăng dần theo năm (lập lại cùng kỳ thì cập nhật số liệu, giữ số), in PDF từng người hoặc cả năm để ký, đóng dấu.
+    Nhân viên tự tải chứng từ của mình ở trang Phiếu lương. Chứng từ điện tử còn cần ký số và đăng ký với cơ quan thuế.
+  - *File chuyển lương*: theo **mẫu file** kế toán tự khai báo cho từng ngân hàng (thứ tự cột, tên cột, Excel hoặc CSV UTF-8,
+    tách cùng / khác ngân hàng, có / không dòng tiêu đề). Tên người hưởng in hoa không dấu, số tài khoản giữ số 0 đầu,
+    liệt kê người thiếu số tài khoản. Số tài khoản, ngân hàng, chi nhánh khai trong hồ sơ nhân sự.
 - **Tuyển dụng:** tin tuyển dụng, ứng viên theo vòng, nhận việc → tạo hồ sơ nhân sự.
 - **Nhập / xuất Excel:** nhân viên mới, điều chỉnh lương, chấm công theo file mẫu; kiểm tra từng dòng,
   chỉ nhập khi không còn lỗi (tất cả hoặc không dòng nào). Xuất danh sách nhân sự.
@@ -185,7 +200,8 @@ Biến `VITE_*` được gắn lúc build → đổi xong phải **Manual Deploy
 ### Cập nhật bản online
 
 Sửa code → commit → push lên GitHub → Render tự build lại (Auto-Deploy) hoặc bấm **Manual Deploy**.
-Đổi cấu trúc database (migration mới) thì chạy lại `npx prisma migrate deploy` với chuỗi Neon.
+Có migration mới thì chạy `npx prisma migrate deploy` (và `npm run seed` nếu có danh mục mới) với chuỗi Neon
+**trước khi push** — Start Command của backend không tự migrate.
 
 ### Lỗi thường gặp
 

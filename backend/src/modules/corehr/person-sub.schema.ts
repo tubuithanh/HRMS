@@ -12,6 +12,9 @@ export const updatePersonSchema = z.object({
   isForeigner: z.boolean().optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
+  bankAccountNo: z.string().trim().regex(/^\d{6,20}$/, 'Số tài khoản gồm 6–20 chữ số').nullable().optional(),
+  bankName: z.string().trim().max(20).nullable().optional(),
+  bankBranch: z.string().trim().max(100).nullable().optional(),
 });
 
 export const relativeSchema = z.object({

@@ -69,6 +69,18 @@ export function currentMonth(): string {
 // ----- Nhãn tiếng Việt cho các enum -----
 export const labels = {
   gender: { MALE: 'Nam', FEMALE: 'Nữ', OTHER: 'Khác' },
+  bank: {
+    VCB: 'Vietcombank',
+    TCB: 'Techcombank',
+    BIDV: 'BIDV',
+    VTB: 'VietinBank',
+    ACB: 'ACB',
+    MB: 'MB Bank',
+    VPB: 'VPBank',
+    TPB: 'TPBank',
+    STB: 'Sacombank',
+    AGR: 'Agribank',
+  },
   employmentStatus: {
     UPCOMING: 'Sắp vào làm',
     PROBATION: 'Thử việc',

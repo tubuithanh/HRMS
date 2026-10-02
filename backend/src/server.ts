@@ -1,3 +1,6 @@
+// Giờ Việt Nam cho chấm công, đi muộn, "hôm nay" — máy chủ cloud mặc định chạy UTC.
+process.env.TZ ??= 'Asia/Ho_Chi_Minh';
+
 import { createApp } from './app';
 import { env } from './config/env';
 import { prisma } from './config/prisma';

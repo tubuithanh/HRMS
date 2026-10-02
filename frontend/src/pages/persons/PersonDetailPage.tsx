@@ -73,6 +73,12 @@ export default function PersonDetailPage() {
             <dt>Quốc tịch</dt><dd>{p.nationality ?? '—'}{p.isForeigner && ' (người nước ngoài)'}</dd>
             <dt>Email</dt><dd>{p.email ?? '—'}</dd>
             <dt>Điện thoại</dt><dd>{p.phone ?? '—'}</dd>
+            <dt>Tài khoản nhận lương</dt>
+            <dd>
+              {p.bankAccountNo
+                ? `${p.bankAccountNo} · ${labels.bank[p.bankName as keyof typeof labels.bank] ?? p.bankName ?? ''}${p.bankBranch ? ` – ${p.bankBranch}` : ''}`
+                : <span className="text-warning-emphasis">Chưa khai — không có trong file chuyển lương</span>}
+            </dd>
           </dl>
         </Card>
       )}

@@ -17,6 +17,9 @@ export const personFields: FieldDef[] = [
   { name: 'nationality', label: 'Quốc tịch', placeholder: 'Việt Nam' },
   { name: 'email', label: 'Email', type: 'email' },
   { name: 'phone', label: 'Điện thoại' },
+  { name: 'bankName', label: 'Ngân hàng nhận lương', type: 'select', options: options(labels.bank), nullable: true },
+  { name: 'bankAccountNo', label: 'Số tài khoản', nullable: true },
+  { name: 'bankBranch', label: 'Chi nhánh', nullable: true },
   { name: 'isForeigner', label: 'Người nước ngoài', type: 'checkbox' },
 ];
 

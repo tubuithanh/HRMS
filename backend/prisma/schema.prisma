@@ -136,6 +136,10 @@ model Person {
   isForeigner     Boolean      @default(false)
   email           String?
   phone           String?
+  // Tài khoản nhận lương
+  bankAccountNo   String?
+  bankName        String?      // mã ngân hàng: VCB, TCB, BIDV, ...
+  bankBranch      String?
   employments     Employment[]
   dependants      Dependant[]
   relatives       Relative[]
@@ -192,6 +196,9 @@ model Employment {
   attendanceRecords   AttendanceRecord[]
   overtimeRequests    OvertimeRequest[] @relation("OvertimeEmployee")
   overtimeApprovals   OvertimeRequest[] @relation("OvertimeApprover")
+  shiftAssignments    ShiftAssignment[]
+  shiftRosters        ShiftRoster[]
+  pitCertificates     PitCertificate[]
   isDelete            Boolean       @default(false)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
@@ -729,6 +736,8 @@ model AttendanceRecord {
   checkIn      DateTime?
   checkOut     DateTime?
   status       AttendanceStatus @default(PRESENT)
+  shiftId      String?          @db.Uuid
+  shift        Shift?           @relation(fields: [shiftId], references: [id])
   note         String?
   // SELF: nhân viên tự chấm; MANUAL: nhân sự nhập/sửa
   source       String           @default("MANUAL")
@@ -1020,4 +1029,81 @@ model SystemSetting {
   value     Json
   updatedAt DateTime @updatedAt
   @@map("system_setting")
+}
+
+// ---------- Ca làm việc ----------
+
+/// Danh mục ca. Ca qua đêm khi giờ kết thúc ≤ giờ bắt đầu (vd 22:00 → 06:00).
+model Shift {
+  id               String   @id @default(uuid()) @db.Uuid
+  code             String   @unique
+  name             String
+  startTime        String   // "HH:mm"
+  endTime          String   // "HH:mm"
+  breakMinutes     Int      @default(60)
+  lateGraceMinutes Int      @default(0)
+  color            String?
+  isActive         Boolean  @default(true)
+  assignments      ShiftAssignment[]
+  rosters          ShiftRoster[]
+  attendanceRecords AttendanceRecord[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("shift")
+}
+
+/// Ca mặc định của nhân viên theo ngày hiệu lực.
+model ShiftAssignment {
+  id            String     @id @default(uuid()) @db.Uuid
+  employmentId  String     @db.Uuid
+  employment    Employment @relation(fields: [employmentId], references: [id])
+  shiftId       String     @db.Uuid
+  shift         Shift      @relation(fields: [shiftId], references: [id])
+  effectiveDate DateTime   @db.Date
+  endDate       DateTime?  @db.Date
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([employmentId])
+  @@map("shift_assignment")
+}
+
+/// Lịch ca từng ngày (xếp ca / xoay ca) — ưu tiên hơn ca mặc định. shiftId null = ngày nghỉ.
+model ShiftRoster {
+  id           String     @id @default(uuid()) @db.Uuid
+  employmentId String     @db.Uuid
+  employment   Employment @relation(fields: [employmentId], references: [id])
+  workDate     DateTime   @db.Date
+  shiftId      String?    @db.Uuid
+  shift        Shift?     @relation(fields: [shiftId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([employmentId, workDate])
+  @@index([workDate])
+  @@map("shift_roster")
+}
+
+/// Chứng từ khấu trừ thuế TNCN (Điều 32 Nghị định 123/2020). Số chứng từ tăng dần theo năm, lập lại cùng kỳ thì cập nhật số liệu, giữ nguyên số.
+model PitCertificate {
+  id            String     @id @default(uuid()) @db.Uuid
+  year          Int
+  seq           Int
+  symbol        String     // ký hiệu, vd CT/26E
+  employmentId  String     @db.Uuid
+  employment    Employment @relation(fields: [employmentId], references: [id])
+  fromMonth     Int
+  toMonth       Int
+  taxableIncome Decimal    @db.Decimal(18, 4)
+  insurance     Decimal    @db.Decimal(18, 4)
+  taxWithheld   Decimal    @db.Decimal(18, 4)
+  issuedAt      DateTime   @default(now())
+  issuedById    String?    @db.Uuid
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([year, seq])
+  @@unique([employmentId, year, fromMonth, toMonth])
+  @@map("pit_certificate")
 }

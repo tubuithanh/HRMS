@@ -188,7 +188,8 @@ export const payrollService = {
           select: { workDate: true, hours: true, multiplier: true },
         },
         advances: {
-          where: { status: { in: ['APPROVED', 'DEDUCTING'] } },
+          // Chỉ trừ tạm ứng đã xin trước hoặc trong kỳ (tính lại kỳ cũ không trừ khoản xin sau).
+          where: { status: { in: ['APPROVED', 'DEDUCTING'] }, requestDate: { lte: asOf } },
           include: { schedule: { where: { isDeducted: false }, orderBy: { index: 'asc' } } },
         },
       },

@@ -17,6 +17,9 @@ export interface Person extends PersonRef {
   isForeigner: boolean;
   email: string | null;
   phone: string | null;
+  bankAccountNo?: string | null;
+  bankName?: string | null;
+  bankBranch?: string | null;
   createdAt: string;
 }
 

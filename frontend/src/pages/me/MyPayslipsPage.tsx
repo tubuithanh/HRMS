@@ -49,7 +49,56 @@ export default function MyPayslipsPage() {
           </Card>
         )
       )}
+      {data && <MyCertificates />}
       {viewing && <PayslipView path={`/me/payslips/${viewing}`} pdfPath={`/me/payslips/${viewing}/pdf`} onClose={() => setViewing(null)} />}
     </>
+  );
+}
+
+interface MyCertificate {
+  id: string;
+  seq: number;
+  symbol: string;
+  fromMonth: number;
+  toMonth: number;
+  taxableIncome: string;
+  taxWithheld: string;
+}
+
+/** Chứng từ khấu trừ thuế TNCN của chính mình (kế toán lập). */
+function MyCertificates() {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const { data, loading } = useFetch<MyCertificate[]>(`/me/pit-certificates?year=${year}`, [year]);
+  return (
+    <Card
+      title="Chứng từ khấu trừ thuế TNCN"
+      flush
+      actions={
+        <select className="form-select form-select-sm" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          {[0, 1, 2].map((k) => {
+            const y = new Date().getFullYear() - k;
+            return <option key={y} value={y}>Năm {y}</option>;
+          })}
+        </select>
+      }
+    >
+      <DataTable
+        rows={data}
+        loading={loading}
+        rowKey={(c) => c.id}
+        empty="Chưa có chứng từ — liên hệ kế toán nếu bạn cần để tự quyết toán thuế"
+        columns={[
+          { header: 'Số', cell: (c) => `${c.symbol} · ${String(c.seq).padStart(7, '0')}` },
+          { header: 'Kỳ', cell: (c) => `Tháng ${c.fromMonth} – ${c.toMonth}` },
+          { header: 'Thu nhập chịu thuế', cell: (c) => money(c.taxableIncome), className: 'num' },
+          { header: 'Thuế đã khấu trừ', cell: (c) => money(c.taxWithheld), className: 'num' },
+          {
+            header: '',
+            className: 'actions',
+            cell: (c) => <ActionButton label="PDF" run={() => downloadFile(`/me/pit-certificates/${c.id}/pdf`, `chung-tu-khau-tru-${year}.pdf`)} />,
+          },
+        ]}
+      />
+    </Card>
   );
 }

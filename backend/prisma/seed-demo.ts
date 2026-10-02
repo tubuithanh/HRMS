@@ -222,12 +222,15 @@ async function main() {
   if (reset) {
     console.log('… Xoá dữ liệu nghiệp vụ cũ');
     await prisma.$transaction([
+      prisma.pitCertificate.deleteMany(),
       prisma.payrollResult.deleteMany(),
       prisma.periodElement.deleteMany(),
       prisma.advanceSchedule.deleteMany(),
       prisma.advance.deleteMany(),
       prisma.payPeriod.deleteMany(),
       prisma.attendanceRecord.deleteMany(),
+      prisma.shiftRoster.deleteMany(),
+      prisma.shiftAssignment.deleteMany(),
       prisma.overtimeRequest.deleteMany(),
       prisma.leaveRequest.deleteMany(),
       prisma.employeeElement.deleteMany(),
@@ -374,6 +377,13 @@ async function main() {
         isForeigner: !!f,
         email,
         phone: uniqueDigits(pick(['090', '091', '093', '097', '098', '086', '035', '038']), 10),
+        // Tài khoản nhận lương (giả); ~4% chưa khai để thấy cảnh báo ở file chuyển lương.
+        ...(chance(0.96)
+          ? (() => {
+              const bank = pick(['VCB', 'VCB', 'TCB', 'BIDV', 'ACB', 'MB', 'VTB']);
+              return { bankName: bank, bankAccountNo: uniqueDigits(bank === 'VCB' ? '10' : '19', bank === 'VCB' ? 13 : 12), bankBranch: pick(['Bình Dương', 'TP.HCM', 'Thủ Đức', 'Dĩ An']) };
+            })()
+          : {}),
       },
     });
 
@@ -714,8 +724,11 @@ async function main() {
     }
   }
 
-  // ---------- Kỳ lương: 3 tháng trước (đã khoá) + tháng này (đã tính) ----------
-  for (let offset = -3; offset <= 0; offset++) {
+  // ---------- Kỳ lương: từ tháng 1 năm nay (ít nhất 3 tháng trước) đã khoá + tháng này (đã tính) ----------
+  // Đủ các tháng trong năm để báo cáo quyết toán thuế, D02 có số liệu thật. Tháng chưa có
+  // dữ liệu chấm công được tính đủ công.
+  const firstOffset = Math.min(-3, -TODAY.getUTCMonth());
+  for (let offset = firstOffset; offset <= 0; offset++) {
     const start = monthStart(offset);
     const code = iso(start).slice(0, 7);
     const period = await prisma.payPeriod.create({
@@ -796,6 +809,32 @@ async function main() {
   ];
   for (const [username, role, e] of accounts) {
     await prisma.user.create({ data: { username, passwordHash: pw, role, personId: e.personId } });
+  }
+
+  // ---------- Ca làm việc ----------
+  console.log('… Ca làm việc');
+  const shiftByCode = Object.fromEntries((await prisma.shift.findMany()).map((x) => [x.code, x.id]));
+  if (shiftByCode.HC && shiftByCode.CA1) {
+    const factory = active.filter((e) => ['CN', 'CNKT', 'TT'].includes(e.job));
+    const officeIds = active.filter((e) => !factory.includes(e)).map((e) => e.id);
+    await prisma.shiftAssignment.createMany({
+      data: [
+        ...officeIds.map((employmentId) => ({ employmentId, shiftId: shiftByCode.HC, effectiveDate: HISTORY_START })),
+        ...factory.map((e) => ({ employmentId: e.id, shiftId: shiftByCode.CA1, effectiveDate: HISTORY_START })),
+      ],
+    });
+    // Xoay ca tháng này và tháng sau: mỗi ca 1 tuần, công nhân chia 3 tổ lệch nhau; chủ nhật nghỉ.
+    const pattern = [shiftByCode.CA1, shiftByCode.CA2, shiftByCode.CA3];
+    const rosterRows: Array<{ employmentId: string; workDate: Date; shiftId: string | null }> = [];
+    // Đổi ca vào thứ 2: đếm tuần từ thứ 2 đầu tiên ≤ ngày 1 của tháng.
+    const firstMonday = addDays(monthStart(0), -((monthStart(0).getUTCDay() + 6) % 7));
+    for (let d = monthStart(0); d < monthStart(2); d = addDays(d, 1)) {
+      const week = Math.floor((d.getTime() - firstMonday.getTime()) / (7 * 86_400_000));
+      factory.forEach((e, i) => {
+        rosterRows.push({ employmentId: e.id, workDate: d, shiftId: d.getUTCDay() === 0 ? null : pattern[(week + (i % 3)) % 3] });
+      });
+    }
+    for (let i = 0; i < rosterRows.length; i += 1000) await prisma.shiftRoster.createMany({ data: rosterRows.slice(i, i + 1000) });
   }
 
   // ---------- Tổng kết ----------

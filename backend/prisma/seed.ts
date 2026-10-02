@@ -188,6 +188,17 @@ async function main() {
     await prisma.holiday.upsert({ where: { date: new Date(date) }, update: {}, create: { date: new Date(date), name } });
   }
 
+  // Ca làm việc mẫu: hành chính + 3 ca sản xuất xoay vòng.
+  const shifts = [
+    { code: 'HC', name: 'Hành chính', startTime: '08:30', endTime: '17:30', breakMinutes: 60, lateGraceMinutes: 0, color: '#2a78d6' },
+    { code: 'CA1', name: 'Ca 1 (sáng)', startTime: '06:00', endTime: '14:00', breakMinutes: 30, lateGraceMinutes: 5, color: '#16a34a' },
+    { code: 'CA2', name: 'Ca 2 (chiều)', startTime: '14:00', endTime: '22:00', breakMinutes: 30, lateGraceMinutes: 5, color: '#eb6834' },
+    { code: 'CA3', name: 'Ca 3 (đêm)', startTime: '22:00', endTime: '06:00', breakMinutes: 30, lateGraceMinutes: 5, color: '#7c3aed' },
+  ];
+  for (const sh of shifts) {
+    await prisma.shift.upsert({ where: { code: sh.code }, update: {}, create: sh });
+  }
+
   // Tài khoản quản trị đầu tiên. Chỉ tạo nếu chưa có, không ghi đè mật khẩu.
   const adminPassword = process.env.SEED_ADMIN_PASSWORD;
   if (!adminPassword || adminPassword.length < 8) {
@@ -203,7 +214,7 @@ async function main() {
     },
   });
 
-  console.log('✅ Seed xong: tham số pháp lý 2026, biểu thuế, tỷ lệ BH, công ty mẫu, loại nghỉ, khoản lương, ngày lễ, tài khoản admin.');
+  console.log('✅ Seed xong: tham số pháp lý 2026, biểu thuế, tỷ lệ BH, công ty mẫu, loại nghỉ, khoản lương, ngày lễ, ca làm việc, tài khoản admin.');
 }
 
 main()

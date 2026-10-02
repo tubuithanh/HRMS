@@ -12,6 +12,7 @@ import { sendPayslipPdf } from '../payroll/payslip.pdf';
 import { overtimeService, selfOvertimeSchema } from '../overtime/overtime.service';
 import { approvalService } from '../approval/approval.service';
 import { reviewLeaveSchema } from '../leave/leave.schema';
+import { pitCertificateService } from '../reports/pit-certificate';
 
 /**
  * Tự phục vụ cho mọi tài khoản đã đăng nhập: xem hồ sơ, phiếu lương,
@@ -253,6 +254,25 @@ router.get(
   '/team',
   asyncHandler(async (req, res) => {
     res.json({ data: await approvalService.myTeam(req.user!) });
+  }),
+);
+
+// ---------- Chứng từ khấu trừ thuế TNCN ----------
+router.get(
+  '/pit-certificates',
+  asyncHandler(async (req, res) => {
+    const year = Number(req.query.year) || new Date().getFullYear();
+    res.json({ data: await pitCertificateService.list({ year, personId: myPersonId(req) }) });
+  }),
+);
+
+router.get(
+  '/pit-certificates/:id/pdf',
+  asyncHandler(async (req, res) => {
+    const pdf = await pitCertificateService.pdf([req.params.id], myPersonId(req));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="chung-tu-khau-tru-TNCN.pdf"');
+    res.send(pdf);
   }),
 );
 

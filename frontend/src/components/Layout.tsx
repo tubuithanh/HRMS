@@ -38,10 +38,18 @@ const menu: Array<NavItem | NavGroup> = [
       { to: '/attendance', label: 'Bảng công', icon: 'bi-calendar3', roles: STAFF },
       { to: '/leave', label: 'Duyệt nghỉ phép', icon: 'bi-check2-square', roles: STAFF },
       { to: '/overtime', label: 'Duyệt làm thêm giờ', icon: 'bi-moon-stars', roles: STAFF },
+      { to: '/shifts', label: 'Ca làm việc', icon: 'bi-clock-history', roles: STAFF },
       { to: '/holidays', label: 'Ngày lễ', icon: 'bi-calendar-heart', roles: STAFF },
     ],
   },
-  { to: '/payroll', label: 'Tính lương', icon: 'bi-cash-coin', roles: STAFF },
+  {
+    label: 'Tính lương',
+    icon: 'bi-cash-coin',
+    items: [
+      { to: '/payroll', label: 'Kỳ lương', icon: 'bi-cash-coin', roles: STAFF },
+      { to: '/reports', label: 'Báo cáo BHXH – Thuế – Chuyển lương', icon: 'bi-file-earmark-bar-graph', roles: STAFF },
+    ],
+  },
   {
     label: 'Cá nhân',
     icon: 'bi-person-circle',
