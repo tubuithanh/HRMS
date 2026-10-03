@@ -96,7 +96,7 @@ thông tư thuế hiện hành. Chạy trên web và điện thoại (cài như 
 
 | Chức năng | Mô tả |
 |---|---|
-| **Tài khoản** | Tạo / khoá / đặt lại mật khẩu, gắn với hồ sơ nhân sự, **phạm vi dữ liệu theo đơn vị**. |
+| **Tài khoản & nhóm quyền** | Tạo / khoá / đặt lại mật khẩu, gắn với hồ sơ nhân sự, **phạm vi dữ liệu theo đơn vị**; **nhóm quyền** do quản trị tự tạo và tích chọn quyền Xem / Sửa cho 15 chức năng (xem mục 2). |
 | **Cấu hình hệ thống** | Mọi tham số vận hành chỉnh trên web, có kiểm tra không vượt mức luật định: thông tin công ty; giờ hành chính, phụ cấp đêm, trừ muộn / sớm, ngưỡng gợi ý làm thêm; tính lương (vùng, ngày trả, giờ làm / ngày, trần khấu trừ, ngưỡng miễn đóng BH, ngưỡng khấu trừ thuế 10%); làm thêm giờ (hệ số 6 loại, giới hạn ngày / tháng, thời hạn đăng ký); dưỡng sức; giới hạn vị trí chấm công; duyệt 2 cấp; bảo mật đăng nhập; giờ chạy và số ngày báo trước của nhắc việc; gửi email thử. Tham số pháp lý (giảm trừ, lương cơ sở, biểu thuế, tỷ lệ BH) quản lý theo ngày hiệu lực. |
 | **Nhập / xuất Excel** | Nhân viên mới, điều chỉnh lương, chấm công theo file mẫu; kiểm tra từng dòng, tất cả hoặc không. Xuất danh sách nhân sự. |
 | **Nhật ký thao tác** | Mọi thao tác ghi dữ liệu kèm giá trị trước / sau, đăng nhập thành công / thất bại; mật khẩu luôn được che. |
@@ -105,24 +105,130 @@ thông tư thuế hiện hành. Chạy trên web và điện thoại (cài như 
 
 ## 2. Vai trò và phân quyền
 
-> **Nhóm quyền (Hệ thống → Tài khoản → Nhóm quyền, chỉ quản trị):** bảng tích chọn **Xem / Thêm-sửa-duyệt** cho 15 chức năng. 4 nhóm hệ thống tạo sẵn đúng như bảng dưới (sửa được, có nút *Khôi phục mặc định*, không xoá được); tạo thêm nhóm tuỳ ý (sao chép từ nhóm có sẵn). Mỗi tài khoản gán một hoặc nhiều nhóm — quyền là hợp các nhóm; không gán nhóm thì dùng nhóm theo vai trò. Quản trị luôn toàn quyền. Bảng dưới là quyền mặc định.
+Phân quyền gồm **ba lớp chồng nhau**, tất cả được kiểm tra ở **backend** (giao diện chỉ ẩn menu / nút cho gọn — gọi thẳng API cũng không vượt quyền):
 
-| Phân hệ | `ADMIN` | `HR` (Nhân sự) | `ACCOUNTANT` (Kế toán) | `EMPLOYEE` (Nhân viên) |
+| Lớp | Trả lời câu hỏi | Cấu hình ở |
+|---|---|---|
+| 1. **Nhóm quyền** | Được dùng chức năng nào, chỉ xem hay được sửa? | *Hệ thống → Nhóm quyền* (chỉ quản trị) |
+| 2. **Phạm vi dữ liệu** | Được thấy nhân viên của những đơn vị nào? | *Hệ thống → Tài khoản → Phạm vi* |
+| 3. **Quản lý trực tiếp** | Được duyệt đơn / chấm đánh giá của ai? | Tự động theo **vị trí chủ chốt** trong sơ đồ tổ chức |
+
+### 2.1. Nhóm quyền
+
+**Quyền** = một chức năng × một mức:
+
+- **Xem** (`<chức năng>:read`) — mở trang, xem danh sách, xuất báo cáo.
+- **Thêm / sửa / duyệt** (`<chức năng>:write`) — mọi thao tác ghi: thêm, sửa, xoá, duyệt, tính lương, khoá kỳ… Quyền sửa **đã gồm** quyền xem.
+
+**15 chức năng phân quyền:**
+
+| Mã | Chức năng | Gồm các trang |
+|---|---|---|
+| `dashboard` | Dashboard | Số liệu tổng hợp, biểu đồ (người không có quyền thấy dashboard cá nhân) |
+| `corehr` | Hồ sơ nhân sự, tổ chức, hợp đồng | Hồ sơ, hợp đồng, quá trình công tác, tổ chức, sơ đồ, nghỉ việc |
+| `attendance` | Chấm công, ca, làm thêm giờ | Bảng công, ca làm việc, xếp ca, nhập máy chấm công, ngày lễ, duyệt làm thêm |
+| `leave` | Nghỉ phép | Duyệt nghỉ phép, loại nghỉ, số ngày phép |
+| `payroll` | Tính lương | Kỳ lương, khoản lương, tạm ứng, phiếu lương, Net → Gross |
+| `reports` | Báo cáo BHXH, thuế, chuyển lương | D02-LT, 05/KK, quyết toán, chứng từ khấu trừ, file ngân hàng |
+| `benefits` | Chế độ BHXH | Ốm đau, thai sản, dưỡng sức |
+| `people` | Khen thưởng, đào tạo, đánh giá | Quyết định khen thưởng – kỷ luật, khoá đào tạo, kỳ đánh giá |
+| `assets` | Tài sản cấp phát | Kho tài sản, cấp / thu hồi |
+| `checklists` | Tiếp nhận / nghỉ việc | Danh sách việc, mẫu việc |
+| `recruitment` | Tuyển dụng | Tin tuyển dụng, ứng viên |
+| `import` | Nhập dữ liệu Excel | Nhập nhân viên, điều chỉnh lương, chấm công; xuất danh sách |
+| `users` | Tài khoản | Tạo / khoá tài khoản, đặt lại mật khẩu, phạm vi |
+| `settings` | Cấu hình hệ thống, tham số pháp lý | Mọi tab cấu hình, tham số pháp lý theo ngày hiệu lực |
+| `audit` | Nhật ký thao tác | Lịch sử thay đổi dữ liệu, đăng nhập |
+
+**Nhóm hệ thống** (tạo tự động khi server khởi động — quyền mặc định):
+
+| Chức năng | Quản trị `ADMIN` | Nhân sự `HR` | Kế toán `ACCOUNTANT` | Nhân viên `EMPLOYEE` |
 |---|:-:|:-:|:-:|:-:|
-| Hồ sơ, tổ chức, hợp đồng, tuyển dụng | ✅ | ✅ | 👁 xem | — |
-| Chấm công, ca, nghỉ phép, làm thêm giờ | ✅ | ✅ | 👁 xem | — |
-| Khen thưởng, đào tạo, đánh giá, tài sản, tiếp nhận | ✅ | ✅ | 👁 xem | — |
-| Chế độ BHXH | ✅ | ✅ | ✅ | — |
-| Tính lương, báo cáo BHXH / thuế, chuyển lương | ✅ | 👁 xem | ✅ | — |
 | Dashboard | ✅ | 👁 | 👁 | — |
-| Tài khoản, cấu hình, tham số pháp lý, nhật ký | ✅ | — | — | — |
-| Cổng nhân viên (`/me`) | mọi tài khoản đã gắn hồ sơ nhân sự | | | |
+| Hồ sơ nhân sự, tổ chức, hợp đồng | ✅ | ✅ | 👁 | — |
+| Chấm công, ca, làm thêm giờ | ✅ | ✅ | 👁 | — |
+| Nghỉ phép | ✅ | ✅ | 👁 | — |
+| Tính lương | ✅ | 👁 | ✅ | — |
+| Báo cáo BHXH, thuế, chuyển lương | ✅ | 👁 | ✅ | — |
+| Chế độ BHXH | ✅ | ✅ | ✅ | — |
+| Khen thưởng, đào tạo, đánh giá | ✅ | ✅ | 👁 | — |
+| Tài sản cấp phát | ✅ | ✅ | 👁 | — |
+| Tiếp nhận / nghỉ việc | ✅ | ✅ | 👁 | — |
+| Tuyển dụng | ✅ | ✅ | — | — |
+| Nhập dữ liệu Excel | ✅ | ✅ | 👁 | — |
+| Tài khoản | ✅ | — | — | — |
+| Cấu hình hệ thống, tham số pháp lý | ✅ | — | — | — |
+| Nhật ký thao tác | ✅ | — | — | — |
 
-- **Quản lý trực tiếp** không phải một vai trò: người giữ **vị trí chủ chốt** của đơn vị tự là quản lý của nhân viên trong đơn vị
-  (duyệt đơn bước 1, chấm đánh giá, việc tiếp nhận của quản lý).
-- **Phạm vi dữ liệu theo đơn vị** (*Hệ thống → Tài khoản → Phạm vi*): tài khoản HR / kế toán được gán đơn vị chỉ thấy và thao tác với
-  nhân viên thuộc các đơn vị đó (kể cả đơn vị con) — ở **mọi** phân hệ, kể cả dashboard và báo cáo. Không gán = toàn công ty;
-  quản trị luôn thấy tất cả. Áp tập trung ở tầng truy cập dữ liệu (`backend/src/common/scope/scope.ts`).
+✅ thêm / sửa / duyệt · 👁 chỉ xem · — không truy cập. **Cổng nhân viên** (hồ sơ, chấm công, nghỉ phép, làm thêm, phiếu lương,
+đánh giá, việc cần làm **của chính mình**) luôn có cho mọi tài khoản đã gắn hồ sơ nhân sự, không phụ thuộc nhóm quyền.
+
+**Quyền hiệu lực của một tài khoản:**
+
+1. Vai trò **Quản trị** → toàn quyền, luôn luôn (nhóm Quản trị không giới hạn được — tránh tự khoá mất quyền quản trị).
+2. Tài khoản **có gán nhóm** → quyền = **hợp** quyền các nhóm được gán (một người có thể thuộc nhiều nhóm).
+3. Tài khoản **chưa gán nhóm** → dùng nhóm hệ thống trùng mã vai trò (`HR`, `ACCOUNTANT`, `EMPLOYEE`).
+
+#### Thao tác (chỉ quản trị)
+
+| Việc cần làm | Cách làm |
+|---|---|
+| Xem / sửa quyền một nhóm | *Hệ thống → Nhóm quyền* → chọn nhóm bên trái → tích **Xem** / **Thêm-sửa-duyệt** → **Lưu**. Có nút chọn nhanh *Xem tất cả / Toàn quyền / Bỏ hết* |
+| Tạo nhóm mới | **+ Nhóm quyền** → mã (A-Z, 0-9, _), tên, tuỳ chọn *sao chép quyền từ* một nhóm có sẵn → chỉnh tiếp |
+| Gán nhóm cho người dùng | *Hệ thống → Tài khoản* → nút **Quyền** ở dòng tài khoản → tích một hoặc nhiều nhóm. Bỏ hết = quay về theo vai trò |
+| Khôi phục nhóm hệ thống | Chọn nhóm → **Khôi phục mặc định** |
+| Xoá nhóm | Chỉ nhóm tự tạo và **không còn tài khoản nào** dùng |
+
+Thay đổi có hiệu lực **ngay** với các thao tác tiếp theo (giao diện cập nhật menu khi người dùng tải lại trang) và được ghi vào nhật ký thao tác.
+
+**Ví dụ**
+
+- *Trưởng phòng nhân sự xem được lương*: tạo nhóm `TRUONG_PHONG_NS`, sao chép từ *Nhân sự*, tích thêm **Xem** ở *Tính lương* và *Báo cáo*; gán cho tài khoản đó.
+- *Kế toán viên chỉ xem lương, không tính*: tạo nhóm `KE_TOAN_XEM`, chỉ tích **Xem** ở *Tính lương*, *Báo cáo*, *Dashboard*.
+- *Trợ lý nhân sự chỉ chấm công*: nhóm `TRO_LY_CC` với **Thêm-sửa** ở *Chấm công* và **Xem** ở *Hồ sơ nhân sự*; kết hợp **phạm vi** = nhà máy của họ.
+- *Nhân viên IT quản lý tài sản*: gán thêm nhóm có **Thêm-sửa** ở *Tài sản cấp phát* — vẫn giữ cổng nhân viên như bình thường.
+
+#### Quy tắc an toàn
+
+- Chỉ **Quản trị** được xem và chỉnh nhóm quyền.
+- Người có quyền *Tài khoản* nhưng không phải Quản trị **không** cấp được vai trò Quản trị, **không** sửa / khoá / đặt lại mật khẩu tài khoản Quản trị.
+- Luôn phải còn ít nhất một tài khoản Quản trị đang hoạt động.
+- Nhóm hệ thống không xoá được; nhóm đang được gán không xoá được.
+- Nhân viên chỉ xem phiếu lương của kỳ **đã khoá**; không ai tự duyệt đơn của chính mình (trừ Quản trị).
+
+### 2.2. Phạm vi dữ liệu theo đơn vị
+
+*Hệ thống → Tài khoản → Phạm vi*: tài khoản được gán đơn vị chỉ thấy và thao tác với nhân viên thuộc các đơn vị đó (kể cả đơn vị con)
+ở **mọi** chức năng — danh sách, bảng công, lương, báo cáo, dashboard; ghi dữ liệu ra ngoài phạm vi cũng bị chặn.
+
+- Không gán đơn vị = toàn công ty; Quản trị luôn thấy tất cả.
+- Nhân viên chưa xếp đơn vị (vừa tuyển) hiện cho mọi người có quyền, để còn xếp đơn vị.
+- Áp tập trung ở tầng truy vấn database (`backend/src/common/scope/scope.ts`) nên không chức năng nào bị sót.
+- Nhóm quyền quyết định **làm được gì**, phạm vi quyết định **trên những ai** — kết hợp được, vd *Kế toán chi nhánh Hà Nội*.
+
+### 2.3. Quản lý trực tiếp
+
+Không phải vai trò hay nhóm quyền: người giữ **vị trí chủ chốt** của một đơn vị tự là quản lý của nhân viên trong đơn vị đó
+(kể cả khi tài khoản chỉ là Nhân viên). Quản lý được: duyệt bước 1 đơn nghỉ phép / làm thêm giờ (khi bật *Duyệt 2 cấp*),
+chấm điểm đánh giá hiệu suất, xem *Nhân viên của tôi*, làm các việc tiếp nhận giao cho “Quản lý trực tiếp”.
+Đổi người quản lý = đổi người giữ vị trí chủ chốt ở *Tổ chức*.
+
+### 2.4. Mã nguồn liên quan
+
+| File | Nội dung |
+|---|---|
+| `backend/src/modules/auth/permissions.ts` | Danh mục chức năng, nhóm hệ thống, tính quyền hiệu lực (cache 60 giây) |
+| `backend/src/modules/auth/permission-group.service.ts` | Thêm / sửa / xoá / khôi phục nhóm quyền |
+| `backend/src/routes.ts` | Gắn quyền cho từng chức năng: `access('payroll')` — GET cần `:read`, còn lại cần `:write` |
+| `backend/src/common/middleware/auth.ts` | `requirePermission(...)`, gắn quyền vào mỗi request |
+| `frontend/src/auth.tsx` | `can()`, `useCan()`, `useCanWrite()` — ẩn / hiện menu, trang, nút |
+| `frontend/src/pages/PermissionGroupsPage.tsx` | Màn hình Nhóm quyền |
+
+Thêm chức năng mới: khai báo mã trong `MODULES` (backend) và kiểu `Module` (frontend), gắn `access('<mã>')` cho router,
+cập nhật quyền mặc định của nhóm hệ thống nếu cần.
+
+**Giới hạn:** quyền chia hai mức Xem / Thêm-sửa-duyệt (chưa tách riêng Xoá, Xuất Excel); một số quy tắc nghiệp vụ vẫn theo vai trò gốc
+(ai nhận nhắc việc hằng ngày, việc tiếp nhận giao cho “Nhân sự / Kế toán”, ai xem được mọi phiếu đánh giá).
 
 ### Tài khoản dùng thử (dữ liệu mẫu)
 
@@ -413,7 +519,7 @@ dịch vụ ngoài gọi API. Render gói miễn phí ngủ khi không có ngư�
 | Mật khẩu | Băm scrypt; tối thiểu 8 ký tự có chữ và số, không chứa tên đăng nhập; bắt đổi ở lần đăng nhập đầu và sau khi quản trị đặt lại |
 | Đăng nhập | Sai 5 lần → khoá 15 phút; mỗi IP tối đa 20 lần / 15 phút; quên mật khẩu bằng link dùng một lần (30 phút) |
 | Phiên | JWT HS256; đổi / đặt lại mật khẩu → mọi phiên cũ hết hiệu lực; khoá tài khoản có hiệu lực ngay |
-| Phân quyền | Theo vai trò cho từng phân hệ + phạm vi dữ liệu theo đơn vị; quản lý chỉ thấy đơn của nhân viên mình; nhân viên chỉ thấy dữ liệu của mình |
+| Phân quyền | Theo nhóm quyền (quản trị cấu hình) cho từng chức năng + phạm vi dữ liệu theo đơn vị; quản lý chỉ thấy đơn của nhân viên mình; nhân viên chỉ thấy dữ liệu của mình |
 | Kiểm soát | Nhật ký thao tác (trước / sau), nhật ký đăng nhập; mật khẩu luôn được che |
 | Hạ tầng | Helmet, CORS giới hạn nguồn, lấy đúng IP sau proxy, khoá cron so sánh an toàn thời gian, bí mật chỉ nằm trong biến môi trường |
 | Dữ liệu | Không đưa dữ liệu nhân sự thật lên host miễn phí; ứng dụng điện thoại không lưu dữ liệu ngoại tuyến |
