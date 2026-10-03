@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Role, roleLabels, useAuth } from '../auth';
+import { can, Module, roleLabels, useAuth } from '../auth';
 import { useFetch } from '../lib/hooks';
 import NotificationBell from './NotificationBell';
 import MobileNav from './MobileNav';
@@ -9,7 +9,8 @@ interface NavItem {
   to: string;
   label: string;
   icon: string;
-  roles?: Role[]; // bỏ trống = mọi tài khoản
+  perm?: Module; // cần quyền xem phân hệ này; bỏ trống = mọi tài khoản
+  adminOnly?: boolean;
   managerOnly?: boolean; // chỉ hiện khi đang là quản lý trực tiếp của ai đó
 }
 
@@ -19,8 +20,6 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const STAFF: Role[] = ['ADMIN', 'HR', 'ACCOUNTANT'];
-
 /** Menu chính. Mục có 1 trang hiện thẳng, nhiều trang thì thành dropdown. */
 const menu: Array<NavItem | NavGroup> = [
   { to: '/dashboard', label: 'Dashboard', icon: 'bi-speedometer2' },
@@ -28,35 +27,35 @@ const menu: Array<NavItem | NavGroup> = [
     label: 'Nhân sự',
     icon: 'bi-people',
     items: [
-      { to: '/persons', label: 'Hồ sơ nhân sự', icon: 'bi-person-vcard', roles: STAFF },
-      { to: '/org', label: 'Tổ chức', icon: 'bi-diagram-3', roles: STAFF },
-      { to: '/recruitment', label: 'Tuyển dụng', icon: 'bi-person-plus', roles: ['ADMIN', 'HR'] },
-      { to: '/rewards', label: 'Khen thưởng – kỷ luật', icon: 'bi-award', roles: STAFF },
-      { to: '/trainings', label: 'Đào tạo', icon: 'bi-mortarboard', roles: STAFF },
-      { to: '/reviews', label: 'Đánh giá hiệu suất', icon: 'bi-graph-up-arrow', roles: STAFF },
-      { to: '/checklists', label: 'Tiếp nhận / nghỉ việc', icon: 'bi-list-check', roles: STAFF },
-      { to: '/assets', label: 'Tài sản cấp phát', icon: 'bi-laptop', roles: STAFF },
-      { to: '/benefits', label: 'Chế độ BHXH', icon: 'bi-heart-pulse', roles: STAFF },
+      { to: '/persons', label: 'Hồ sơ nhân sự', icon: 'bi-person-vcard', perm: 'corehr' },
+      { to: '/org', label: 'Tổ chức', icon: 'bi-diagram-3', perm: 'corehr' },
+      { to: '/recruitment', label: 'Tuyển dụng', icon: 'bi-person-plus', perm: 'recruitment' },
+      { to: '/rewards', label: 'Khen thưởng – kỷ luật', icon: 'bi-award', perm: 'people' },
+      { to: '/trainings', label: 'Đào tạo', icon: 'bi-mortarboard', perm: 'people' },
+      { to: '/reviews', label: 'Đánh giá hiệu suất', icon: 'bi-graph-up-arrow', perm: 'people' },
+      { to: '/checklists', label: 'Tiếp nhận / nghỉ việc', icon: 'bi-list-check', perm: 'checklists' },
+      { to: '/assets', label: 'Tài sản cấp phát', icon: 'bi-laptop', perm: 'assets' },
+      { to: '/benefits', label: 'Chế độ BHXH', icon: 'bi-heart-pulse', perm: 'benefits' },
     ],
   },
   {
     label: 'Chấm công',
     icon: 'bi-calendar3',
     items: [
-      { to: '/attendance', label: 'Bảng công', icon: 'bi-calendar3', roles: STAFF },
-      { to: '/leave', label: 'Duyệt nghỉ phép', icon: 'bi-check2-square', roles: STAFF },
-      { to: '/overtime', label: 'Duyệt làm thêm giờ', icon: 'bi-moon-stars', roles: STAFF },
-      { to: '/shifts', label: 'Ca làm việc', icon: 'bi-clock-history', roles: STAFF },
-      { to: '/attendance/machine', label: 'Nhập máy chấm công', icon: 'bi-fingerprint', roles: ['ADMIN', 'HR'] },
-      { to: '/holidays', label: 'Ngày lễ', icon: 'bi-calendar-heart', roles: STAFF },
+      { to: '/attendance', label: 'Bảng công', icon: 'bi-calendar3', perm: 'attendance' },
+      { to: '/leave', label: 'Duyệt nghỉ phép', icon: 'bi-check2-square', perm: 'leave' },
+      { to: '/overtime', label: 'Duyệt làm thêm giờ', icon: 'bi-moon-stars', perm: 'attendance' },
+      { to: '/shifts', label: 'Ca làm việc', icon: 'bi-clock-history', perm: 'attendance' },
+      { to: '/attendance/machine', label: 'Nhập máy chấm công', icon: 'bi-fingerprint', perm: 'attendance' },
+      { to: '/holidays', label: 'Ngày lễ', icon: 'bi-calendar-heart', perm: 'attendance' },
     ],
   },
   {
     label: 'Tính lương',
     icon: 'bi-cash-coin',
     items: [
-      { to: '/payroll', label: 'Kỳ lương', icon: 'bi-cash-coin', roles: STAFF },
-      { to: '/reports', label: 'Báo cáo BHXH – Thuế – Chuyển lương', icon: 'bi-file-earmark-bar-graph', roles: STAFF },
+      { to: '/payroll', label: 'Kỳ lương', icon: 'bi-cash-coin', perm: 'payroll' },
+      { to: '/reports', label: 'Báo cáo BHXH – Thuế – Chuyển lương', icon: 'bi-file-earmark-bar-graph', perm: 'reports' },
     ],
   },
   {
@@ -78,11 +77,12 @@ const menu: Array<NavItem | NavGroup> = [
     label: 'Hệ thống',
     icon: 'bi-gear',
     items: [
-      { to: '/import', label: 'Nhập / xuất Excel', icon: 'bi-file-earmark-spreadsheet', roles: STAFF },
-      { to: '/users', label: 'Tài khoản', icon: 'bi-shield-lock', roles: ['ADMIN'] },
-      { to: '/audit', label: 'Nhật ký thao tác', icon: 'bi-journal-text', roles: ['ADMIN'] },
-      { to: '/settings', label: 'Cấu hình hệ thống', icon: 'bi-sliders', roles: ['ADMIN'] },
-      { to: '/settings/legal', label: 'Tham số pháp lý', icon: 'bi-bank', roles: ['ADMIN'] },
+      { to: '/import', label: 'Nhập / xuất Excel', icon: 'bi-file-earmark-spreadsheet', perm: 'import' },
+      { to: '/users', label: 'Tài khoản', icon: 'bi-person-gear', perm: 'users' },
+      { to: '/users/groups', label: 'Nhóm quyền', icon: 'bi-shield-lock', adminOnly: true },
+      { to: '/audit', label: 'Nhật ký thao tác', icon: 'bi-journal-text', perm: 'audit' },
+      { to: '/settings', label: 'Cấu hình hệ thống', icon: 'bi-sliders', perm: 'settings' },
+      { to: '/settings/legal', label: 'Tham số pháp lý', icon: 'bi-bank', perm: 'settings' },
     ],
   },
 ];
@@ -135,7 +135,8 @@ export default function Layout() {
   const pendingApprovals = (approvals.data?.leave.length ?? 0) + (approvals.data?.overtime.length ?? 0);
   if (!user) return null;
 
-  const allowed = (i: NavItem) => (!i.roles || i.roles.includes(user.role)) && (!i.managerOnly || isManager);
+  const allowed = (i: NavItem) =>
+    (!i.perm || can(user, i.perm)) && (!i.adminOnly || user.role === 'ADMIN') && (!i.managerOnly || isManager);
   const badgeFor = (to: string) =>
     to === '/me/approvals' && pendingApprovals > 0 ? pendingApprovals : to === '/me/tasks' ? (tasks.data?.length ?? 0) : 0;
 

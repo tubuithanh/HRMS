@@ -137,7 +137,7 @@ function TemplateEditor(props: { t: Template | null; onClose: () => void; onDone
 }
 
 export default function ChecklistsPage() {
-  const canWrite = useCanWrite('corehr');
+  const canWrite = useCanWrite('checklists');
   const [tab, setTab] = useState<'OPEN' | 'DONE' | 'TEMPLATES'>('OPEN');
   const [kind, setKind] = useState('');
   const [starting, setStarting] = useState(false);

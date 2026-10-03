@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import { roleLabels, useAuth } from '../auth';
+import { roleLabels, useAuth, can } from '../auth';
 import { ActionButton, Badge, Card, PageHeader } from '../components/ui';
 import { useFetch } from '../lib/hooks';
 import { labels, money, time } from '../lib/format';
@@ -99,7 +99,7 @@ function EmployeeDashboard() {
 export default function DashboardPage() {
   const { user } = useAuth();
   if (!user) return null;
-  const isStaff = user.role !== 'EMPLOYEE';
+  const isStaff = can(user, 'dashboard');
   const hour = new Date().getHours();
   const greet = hour < 11 ? 'Chào buổi sáng' : hour < 13 ? 'Chào buổi trưa' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
   const today = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });

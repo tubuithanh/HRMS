@@ -91,7 +91,7 @@ function History({ id, onClose }: { id: string; onClose: () => void }) {
 }
 
 export default function AssetsPage() {
-  const canWrite = useCanWrite('corehr');
+  const canWrite = useCanWrite('assets');
   const [status, setStatus] = useState('');
   const [category, setCategory] = useState('');
   const [q, setQ] = useState('');

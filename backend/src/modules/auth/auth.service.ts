@@ -1,3 +1,4 @@
+import { permissionsOf } from './permissions';
 import { clearScopeCache } from '../../common/scope/scope';
 import { createHash, randomBytes } from 'crypto';
 import { Prisma, User } from '@prisma/client';
@@ -50,6 +51,15 @@ async function assertNotLastAdmin(userId: string) {
       'LAST_ADMIN',
     );
   }
+}
+
+/** Nhóm quyền phải tồn tại; trả danh sách không trùng. */
+async function assertGroups(ids: string[] | undefined): Promise<string[]> {
+  const unique = [...new Set(ids ?? [])];
+  if (unique.length && (await prisma.permissionGroup.count({ where: { id: { in: unique } } })) !== unique.length) {
+    throw new AppError('Có nhóm quyền không tồn tại', 422, 'VALIDATION_ERROR');
+  }
+  return unique;
 }
 
 async function assertPersonExists(personId: string) {
@@ -111,7 +121,7 @@ export const authService = {
     const scopeOrgs = user.orgScope.length
       ? await prisma.orgStructure.findMany({ where: { id: { in: user.orgScope } }, select: { id: true, name: true } })
       : [];
-    return { ...toPublic(user), scopeOrgs };
+    return { ...toPublic(user), scopeOrgs, permissions: await permissionsOf(user) };
   },
 
   /** Tự đổi mật khẩu. Trả về token mới vì các phiên cũ bị vô hiệu. */
@@ -208,6 +218,7 @@ export const authService = {
           role: input.role,
           personId: input.personId,
           mustChangePassword: input.mustChangePassword ?? true,
+          permissionGroupIds: await assertGroups(input.permissionGroupIds),
         },
       });
       return toPublic(user);
@@ -229,6 +240,7 @@ export const authService = {
       const n = await prisma.orgStructure.count({ where: { id: { in: input.orgScope }, isDelete: false } });
       if (n !== new Set(input.orgScope).size) throw new AppError('Có đơn vị không tồn tại', 422, 'VALIDATION_ERROR');
     }
+    if (input.permissionGroupIds) await assertGroups(input.permissionGroupIds);
     clearScopeCache(id);
     try {
       return toPublic(await prisma.user.update({ where: { id }, data: input }));

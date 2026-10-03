@@ -21,6 +21,8 @@ export interface CurrentUser {
   /** Phạm vi dữ liệu (đơn vị) — rỗng = toàn công ty. */
   orgScope?: string[];
   scopeOrgs?: Array<{ id: string; name: string }>;
+  /** Quyền hiệu lực theo nhóm quyền: "<phân hệ>:read" | "<phân hệ>:write". */
+  permissions?: string[];
 }
 
 interface AuthState {
@@ -87,18 +89,26 @@ export function useAuth() {
   return ctx;
 }
 
-/** Vai trò được sửa dữ liệu từng phân hệ — khớp với backend/src/routes.ts. */
-const writers = {
-  corehr: ['ADMIN', 'HR'],
-  leave: ['ADMIN', 'HR'],
-  attendance: ['ADMIN', 'HR'],
-  recruitment: ['ADMIN', 'HR'],
-  payroll: ['ADMIN', 'ACCOUNTANT'],
-} satisfies Record<string, Role[]>;
+/** Phân hệ phân quyền — khớp với backend/src/modules/auth/permissions.ts. */
+export type Module =
+  | 'dashboard' | 'corehr' | 'attendance' | 'leave' | 'payroll' | 'reports' | 'benefits' | 'people'
+  | 'assets' | 'checklists' | 'recruitment' | 'import' | 'users' | 'settings' | 'audit';
 
-export function useCanWrite(area: keyof typeof writers): boolean {
-  const { user } = useAuth();
-  return !!user && (writers[area] as Role[]).includes(user.role);
+/** Có quyền không (ADMIN luôn có; có quyền sửa thì có quyền xem). */
+export function can(user: CurrentUser | null | undefined, module: Module, action: 'read' | 'write' = 'read'): boolean {
+  if (!user) return false;
+  if (user.role === 'ADMIN') return true;
+  const p = user.permissions ?? [];
+  return p.includes(`${module}:write`) || (action === 'read' && p.includes(`${module}:read`));
+}
+
+export function useCan(module: Module, action: 'read' | 'write' = 'read'): boolean {
+  return can(useAuth().user, module, action);
+}
+
+/** Được thêm / sửa / xoá / duyệt dữ liệu của phân hệ. */
+export function useCanWrite(area: Module): boolean {
+  return useCan(area, 'write');
 }
 
 export const roleLabels: Record<Role, string> = {

@@ -54,7 +54,7 @@ export const CourseBadge = ({ status }: { status: string }) => <span className={
 export const ResultBadge = ({ result }: { result: string }) => <span className={`badge ${RESULT_TONE[result] ?? ''}`}>{RESULT[result] ?? result}</span>;
 
 export default function TrainingsPage() {
-  const canWrite = useCanWrite('corehr');
+  const canWrite = useCanWrite('people');
   const [creating, setCreating] = useState(false);
   const list = useFetch<Course[]>('/people/trainings');
   const navigate = useNavigate();
@@ -115,7 +115,7 @@ function ResultModal(props: { p: Participant; onClose: () => void; onDone: () =>
 
 export function TrainingDetailPage() {
   const { id } = useParams();
-  const canWrite = useCanWrite('corehr');
+  const canWrite = useCanWrite('people');
   const course = useFetch<Course & { participants: Participant[]; commitmentEnd: string | null }>(`/people/trainings/${id}`);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);

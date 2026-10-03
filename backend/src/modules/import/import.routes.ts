@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../common/utils/asyncHandler';
-import { requireRole } from '../../common/middleware/auth';
+import { requirePermission } from '../../common/middleware/auth';
 import { ValidationError } from '../../common/errors/AppError';
 import { buildTemplate, exportEmployees, isImportType, runImport } from './import.service';
 
@@ -18,7 +18,7 @@ function importType(t: string) {
 /** GET /api/import/templates/:type — file mẫu. */
 router.get(
   '/templates/:type',
-  requireRole('HR'),
+  requirePermission('import:write'),
   asyncHandler(async (req, res) => {
     const type = importType(req.params.type);
     res.setHeader('Content-Type', XLSX);
@@ -37,7 +37,7 @@ const bodySchema = z.object({
 /** POST /api/import/:type — kiểm tra (commit=false) hoặc nhập (commit=true). */
 router.post(
   '/:type',
-  requireRole('HR'),
+  requirePermission('import:write'),
   asyncHandler(async (req, res) => {
     const type = importType(req.params.type);
     const { file, commit } = bodySchema.parse(req.body);
@@ -48,7 +48,7 @@ router.post(
 /** GET /api/import/export/employees — xuất danh sách nhân sự. */
 router.get(
   '/export/employees',
-  requireRole('HR', 'ACCOUNTANT'),
+  requirePermission('import:read', 'import:write'),
   asyncHandler(async (_req, res) => {
     res.setHeader('Content-Type', XLSX);
     res.setHeader('Content-Disposition', `attachment; filename="danh-sach-nhan-su.xlsx"`);

@@ -283,7 +283,7 @@ function BankTab() {
   const templates = useFetch<BankTemplate[]>('/reports/bank-templates');
   const [templateId, setTemplateId] = useState('');
   const [editingTemplates, setEditingTemplates] = useState(false);
-  const canWrite = useCanWrite('payroll');
+  const canWrite = useCanWrite('reports');
   const template = templates.data?.find((t) => t.id === templateId) ?? templates.data?.[0];
   useEffect(() => {
     if (!periodId && periods.data?.length) {
@@ -545,7 +545,7 @@ interface Certificate {
 }
 
 function CertificatesTab() {
-  const canWrite = useCanWrite('payroll');
+  const canWrite = useCanWrite('reports');
   const [year, setYear] = useState(Number(lastMonth().slice(0, 4)));
   const [fromMonth, setFrom] = useState(1);
   const [toMonth, setTo] = useState(12);

@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider, Role, useAuth } from './auth';
+import { AuthProvider, can, Module, useAuth } from './auth';
 import { ToastProvider } from './components/ui';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
@@ -30,6 +30,7 @@ import MyOvertimePage from './pages/me/MyOvertimePage';
 import { MyApprovalsPage, MyTeamPage } from './pages/me/ManagerPages';
 import RecruitmentPage from './pages/recruitment/RecruitmentPage';
 import OpeningDetailPage from './pages/recruitment/OpeningDetailPage';
+import PermissionGroupsPage from './pages/PermissionGroupsPage';
 import UsersPage from './pages/UsersPage';
 import ImportPage from './pages/ImportPage';
 import AuditPage from './pages/AuditPage';
@@ -40,12 +41,10 @@ import MyAttendancePage from './pages/me/MyAttendancePage';
 import MyLeavePage from './pages/me/MyLeavePage';
 import MyPayslipsPage from './pages/me/MyPayslipsPage';
 
-const STAFF: Role[] = ['ADMIN', 'HR', 'ACCOUNTANT'];
-
-/** Chặn trang theo vai trò; không đủ quyền thì về Dashboard. */
-function RequireRole({ roles, children }: { roles: Role[]; children: ReactNode }) {
+/** Chặn trang theo quyền (nhóm quyền); không đủ quyền thì về Dashboard. */
+function RequirePerm({ module, action = 'read', children }: { module: Module; action?: 'read' | 'write'; children: ReactNode }) {
   const { user } = useAuth();
-  if (!user || !roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
+  if (!can(user, module, action)) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -70,7 +69,7 @@ function AppRoutes() {
   }
 
   const home = '/dashboard';
-  const staff = (el: ReactNode) => <RequireRole roles={STAFF}>{el}</RequireRole>;
+  const P = (module: Module, el: ReactNode, action: 'read' | 'write' = 'read') => <RequirePerm module={module} action={action}>{el}</RequirePerm>;
 
   return (
     <Routes>
@@ -90,39 +89,40 @@ function AppRoutes() {
         <Route path="tasks/:id" element={<ChecklistDetailPage />} />
 
         <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="persons" element={staff(<PersonsPage />)} />
-        <Route path="persons/:id" element={staff(<PersonDetailPage />)} />
-        <Route path="org" element={staff(<OrgPage />)} />
-        <Route path="attendance" element={staff(<TimesheetPage />)} />
-        <Route path="leave" element={staff(<LeaveAdminPage />)} />
-        <Route path="overtime" element={staff(<OvertimeAdminPage />)} />
-        <Route path="holidays" element={staff(<HolidaysPage />)} />
-        <Route path="shifts" element={staff(<ShiftsPage />)} />
-        <Route path="attendance/machine" element={<RequireRole roles={['ADMIN', 'HR']}><MachineImportPage /></RequireRole>} />
-        <Route path="rewards" element={staff(<RewardsPage />)} />
-        <Route path="checklists" element={staff(<ChecklistsPage />)} />
-        <Route path="assets" element={staff(<AssetsPage />)} />
-        <Route path="benefits" element={staff(<BenefitsPage />)} />
-        <Route path="trainings" element={staff(<TrainingsPage />)} />
-        <Route path="trainings/:id" element={staff(<TrainingDetailPage />)} />
-        <Route path="reviews" element={staff(<ReviewsPage />)} />
-        <Route path="reviews/:id" element={staff(<ReviewCyclePage />)} />
-        <Route path="payroll" element={staff(<PayrollPage />)} />
-        <Route path="payroll/:id" element={staff(<PeriodDetailPage />)} />
-        <Route path="reports" element={staff(<ReportsPage />)} />
+        <Route path="persons" element={P('corehr', <PersonsPage />)} />
+        <Route path="persons/:id" element={P('corehr', <PersonDetailPage />)} />
+        <Route path="org" element={P('corehr', <OrgPage />)} />
+        <Route path="attendance" element={P('attendance', <TimesheetPage />)} />
+        <Route path="leave" element={P('leave', <LeaveAdminPage />)} />
+        <Route path="overtime" element={P('attendance', <OvertimeAdminPage />)} />
+        <Route path="holidays" element={P('attendance', <HolidaysPage />)} />
+        <Route path="shifts" element={P('attendance', <ShiftsPage />)} />
+        <Route path="attendance/machine" element={P('attendance', <MachineImportPage />, 'write')} />
+        <Route path="rewards" element={P('people', <RewardsPage />)} />
+        <Route path="checklists" element={P('checklists', <ChecklistsPage />)} />
+        <Route path="assets" element={P('assets', <AssetsPage />)} />
+        <Route path="benefits" element={P('benefits', <BenefitsPage />)} />
+        <Route path="trainings" element={P('people', <TrainingsPage />)} />
+        <Route path="trainings/:id" element={P('people', <TrainingDetailPage />)} />
+        <Route path="reviews" element={P('people', <ReviewsPage />)} />
+        <Route path="reviews/:id" element={P('people', <ReviewCyclePage />)} />
+        <Route path="payroll" element={P('payroll', <PayrollPage />)} />
+        <Route path="payroll/:id" element={P('payroll', <PeriodDetailPage />)} />
+        <Route path="reports" element={P('reports', <ReportsPage />)} />
         <Route
           path="recruitment"
-          element={<RequireRole roles={['ADMIN', 'HR']}><RecruitmentPage /></RequireRole>}
+          element={P('recruitment', <RecruitmentPage />)}
         />
         <Route
           path="recruitment/:id"
-          element={<RequireRole roles={['ADMIN', 'HR']}><OpeningDetailPage /></RequireRole>}
+          element={P('recruitment', <OpeningDetailPage />)}
         />
-        <Route path="import" element={<RequireRole roles={['ADMIN', 'HR', 'ACCOUNTANT']}><ImportPage /></RequireRole>} />
-        <Route path="settings/legal" element={<RequireRole roles={['ADMIN']}><LegalParamsPage /></RequireRole>} />
-        <Route path="settings" element={<RequireRole roles={['ADMIN']}><SettingsPage /></RequireRole>} />
-        <Route path="audit" element={<RequireRole roles={['ADMIN']}><AuditPage /></RequireRole>} />
-        <Route path="users" element={<RequireRole roles={['ADMIN']}><UsersPage /></RequireRole>} />
+        <Route path="import" element={P('import', <ImportPage />)} />
+        <Route path="settings/legal" element={P('settings', <LegalParamsPage />)} />
+        <Route path="settings" element={P('settings', <SettingsPage />)} />
+        <Route path="audit" element={P('audit', <AuditPage />)} />
+        <Route path="users" element={P('users', <UsersPage />)} />
+        <Route path="users/groups" element={user.role === 'ADMIN' ? <PermissionGroupsPage /> : <Navigate to={home} replace />} />
         <Route path="*" element={<Navigate to={home} replace />} />
       </Route>
     </Routes>

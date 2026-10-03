@@ -105,6 +105,8 @@ thông tư thuế hiện hành. Chạy trên web và điện thoại (cài như 
 
 ## 2. Vai trò và phân quyền
 
+> **Nhóm quyền (Hệ thống → Tài khoản → Nhóm quyền, chỉ quản trị):** bảng tích chọn **Xem / Thêm-sửa-duyệt** cho 15 chức năng. 4 nhóm hệ thống tạo sẵn đúng như bảng dưới (sửa được, có nút *Khôi phục mặc định*, không xoá được); tạo thêm nhóm tuỳ ý (sao chép từ nhóm có sẵn). Mỗi tài khoản gán một hoặc nhiều nhóm — quyền là hợp các nhóm; không gán nhóm thì dùng nhóm theo vai trò. Quản trị luôn toàn quyền. Bảng dưới là quyền mặc định.
+
 | Phân hệ | `ADMIN` | `HR` (Nhân sự) | `ACCOUNTANT` (Kế toán) | `EMPLOYEE` (Nhân viên) |
 |---|:-:|:-:|:-:|:-:|
 | Hồ sơ, tổ chức, hợp đồng, tuyển dụng | ✅ | ✅ | 👁 xem | — |

@@ -106,7 +106,7 @@ function CreateCycle(props: { onClose: () => void; onDone: (id: string) => void 
 }
 
 export default function ReviewsPage() {
-  const canWrite = useCanWrite('corehr');
+  const canWrite = useCanWrite('people');
   const [creating, setCreating] = useState(false);
   const list = useFetch<Cycle[]>('/people/review-cycles');
   const navigate = useNavigate();
@@ -160,7 +160,7 @@ interface ReviewRow {
 
 export function ReviewCyclePage() {
   const { id } = useParams();
-  const canWrite = useCanWrite('corehr');
+  const canWrite = useCanWrite('people');
   const cycle = useFetch<Cycle & { reviews: ReviewRow[]; distribution: Record<string, number> }>(`/people/review-cycles/${id}`);
   const [open, setOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState('');

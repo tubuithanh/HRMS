@@ -644,6 +644,8 @@ model User {
   isActive     Boolean   @default(true)
   /// Phạm vi dữ liệu (nhân sự / kế toán): chỉ thấy nhân viên thuộc các đơn vị này và đơn vị con. Rỗng = toàn công ty.
   orgScope     String[]  @default([]) @db.Uuid
+  /// Nhóm quyền được gán. Rỗng = dùng nhóm hệ thống trùng mã vai trò (HR, ACCOUNTANT, EMPLOYEE).
+  permissionGroupIds String[] @default([]) @db.Uuid
   lastLoginAt  DateTime?
   // Bảo mật đăng nhập
   failedLoginCount   Int       @default(0)
@@ -1043,6 +1045,20 @@ enum ApprovalStage {
 }
 
 // Cấu hình hệ thống: mỗi nhóm (attendance, payroll, approval, security) một dòng JSON.
+/// Nhóm quyền: tập quyền "phân hệ:read|write" — quản trị chỉnh trên web.
+model PermissionGroup {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  description String?
+  permissions String[] @default([])
+  /// Nhóm tạo sẵn theo vai trò — sửa được quyền, không xoá được.
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@map("permission_group")
+}
+
 model SystemSetting {
   key       String   @id
   value     Json

@@ -5,6 +5,7 @@ import { basePrisma, prisma } from '../../config/prisma';
 import { computeScope, setRequestScope } from '../scope/scope';
 import { setAuditUser } from '../audit/audit';
 import { AuthUser, verifyToken } from '../../modules/auth/token';
+import { Permission, permissionsOf } from '../../modules/auth/permissions';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -46,7 +47,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
 
   prisma.user
     .findUnique({ where: { id: userId } })
-    .then((user) => {
+    .then(async (user) => {
       if (!user || !user.isActive) return next(new UnauthorizedError());
       // Token cấp trước lần đổi mật khẩu gần nhất → đăng nhập lại.
       // (iat của JWT làm tròn xuống giây nên cho sai lệch 1 giây.)
@@ -63,6 +64,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
         username: user.username,
         role: user.role,
         personId: user.personId,
+        permissions: await permissionsOf(user),
       };
       setAuditUser(user.id, user.username);
       // Phạm vi dữ liệu theo đơn vị (quản trị luôn thấy tất cả).
@@ -75,6 +77,15 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
       next();
     })
     .catch(next);
+}
+
+/** Cần một quyền (vd "payroll:write"). Có quyền sửa thì có quyền xem. ADMIN luôn được phép. */
+export function requirePermission(...anyOf: Permission[]) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.user) return next(new UnauthorizedError());
+    if (req.user.role === 'ADMIN' || anyOf.some((p) => req.user!.permissions?.includes(p))) return next();
+    next(new ForbiddenError());
+  };
 }
 
 /**

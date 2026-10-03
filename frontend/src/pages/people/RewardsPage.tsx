@@ -144,7 +144,7 @@ function CreateModal(props: { onClose: () => void; onDone: () => void }) {
 }
 
 export default function RewardsPage() {
-  const canWrite = useCanWrite('corehr');
+  const canWrite = useCanWrite('people');
   const [tab, setTab] = useState<'ALL' | 'REWARD' | 'DISCIPLINE'>('ALL');
   const [year, setYear] = useState(new Date().getFullYear());
   const [creating, setCreating] = useState(false);

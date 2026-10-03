@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { roleLabels, useAuth } from '../auth';
 import { ActionButton, Badge, Card, DataTable, ErrorBox, FieldDef, FormModal, PageHeader } from '../components/ui';
@@ -9,7 +10,14 @@ import { Modal, useToast } from '../components/ui';
 import { errorMessage } from '../api/client';
 import { PASSWORD_RULE } from './ChangePasswordPage';
 
-type Dialog = 'create' | { edit: UserAccount } | { reset: UserAccount } | { scope: UserAccount } | null;
+type Dialog = 'create' | { edit: UserAccount } | { reset: UserAccount } | { scope: UserAccount } | { groups: UserAccount } | null;
+
+interface GroupLite {
+  id: string;
+  code: string;
+  name: string;
+  isSystem: boolean;
+}
 
 export default function UsersPage() {
   const { user: me } = useAuth();
@@ -18,6 +26,16 @@ export default function UsersPage() {
   const persons = useFetch<Person[]>('/corehr/persons');
   const orgs = useFetch<OrgUnit[]>('/corehr/org');
   const orgName = (id: string) => orgs.data?.find((o) => o.id === id)?.name ?? '…';
+  // Nhóm quyền: chỉ quản trị xem / gán được.
+  const isAdmin = me?.role === 'ADMIN';
+  const groups = useFetch<{ groups: GroupLite[] }>(isAdmin ? '/auth/permission-groups' : null);
+  const groupList = groups.data?.groups ?? [];
+  const groupNames = (u: UserAccount) =>
+    u.role === 'ADMIN'
+      ? 'Toàn quyền'
+      : u.permissionGroupIds?.length
+        ? u.permissionGroupIds.map((id) => groupList.find((g) => g.id === id)?.name ?? '…').join(', ')
+        : `Theo vai trò (${roleLabels[u.role]})`;
 
   const personOptions = (persons.data ?? []).map((p) => ({ value: p.id, label: `${p.personCode} · ${p.fullName}` }));
   const roleOptions = options(roleLabels);
@@ -42,7 +60,12 @@ export default function UsersPage() {
       <PageHeader
         title="Tài khoản"
         subtitle="Nhân viên cần được gắn với hồ sơ nhân sự để xem phiếu lương, xin nghỉ, chấm công"
-        actions={<button className="btn btn-primary" onClick={() => setDialog('create')}>+ Tài khoản</button>}
+        actions={
+          <>
+            {isAdmin && <Link to="/users/groups" className="btn btn-outline-primary"><i className="bi bi-shield-lock me-1" />Nhóm quyền</Link>}
+            <button className="btn btn-primary" onClick={() => setDialog('create')}>+ Tài khoản</button>
+          </>
+        }
       />
       <Card flush>
         <ErrorBox error={error} />
@@ -53,6 +76,7 @@ export default function UsersPage() {
           columns={[
             { header: 'Tên đăng nhập', cell: (u) => <strong>{u.username}</strong> },
             { header: 'Vai trò', cell: (u) => <Badge tone={u.role === 'ADMIN' ? 'blue' : undefined}>{roleLabels[u.role]}</Badge> },
+            ...(isAdmin ? [{ header: 'Nhóm quyền', cell: (u: UserAccount) => <span className="small">{groupNames(u)}</span> }] : []),
             { header: 'Nhân sự', cell: (u) => (u.person ? `${u.person.personCode} · ${u.person.fullName}` : <span className="muted">Chưa gắn</span>) },
             {
               header: 'Phạm vi dữ liệu',
@@ -85,6 +109,9 @@ export default function UsersPage() {
               cell: (u) => (
                 <span className="toolbar" style={{ justifyContent: 'flex-end' }}>
                   <button className="btn btn-sm btn-outline-secondary" onClick={() => setDialog({ edit: u })}>Sửa</button>
+                  {isAdmin && u.role !== 'ADMIN' && (
+                    <button className="btn btn-sm btn-outline-secondary" onClick={() => setDialog({ groups: u })}>Quyền</button>
+                  )}
                   {(u.role === 'HR' || u.role === 'ACCOUNTANT') && (
                     <button className="btn btn-sm btn-outline-secondary" onClick={() => setDialog({ scope: u })}>Phạm vi</button>
                   )}
@@ -111,6 +138,9 @@ export default function UsersPage() {
 
       {dialog && typeof dialog === 'object' && 'scope' in dialog && (
         <ScopeModal user={dialog.scope} orgs={orgs.data ?? []} onClose={() => setDialog(null)} onDone={done} />
+      )}
+      {dialog && typeof dialog === 'object' && 'groups' in dialog && (
+        <GroupsModal user={dialog.groups} groups={groupList} onClose={() => setDialog(null)} onDone={done} />
       )}
       {dialog === 'create' && (
         <FormModal title="Tạo tài khoản" fields={createFields} initial={{ role: 'EMPLOYEE', mustChangePassword: true }} path="/auth/users" successMessage="Đã tạo tài khoản" onClose={() => setDialog(null)} onSaved={done} />
@@ -190,6 +220,54 @@ function ScopeModal(props: { user: UserAccount; orgs: OrgUnit[]; onClose: () => 
           <button className="btn btn-outline-secondary" onClick={props.onClose}>Huỷ</button>
           <button className="btn btn-primary" disabled={busy} onClick={save}>Lưu</button>
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** Gán nhóm quyền cho tài khoản (không chọn nhóm nào = dùng nhóm theo vai trò). */
+function GroupsModal(props: { user: UserAccount; groups: GroupLite[]; onClose: () => void; onDone: () => void }) {
+  const [sel, setSel] = useState<Set<string>>(new Set(props.user.permissionGroupIds ?? []));
+  const [err, setErr] = useState<string | null>(null);
+  const toast = useToast();
+  async function save() {
+    try {
+      await api.patch(`/auth/users/${props.user.id}`, { permissionGroupIds: [...sel] });
+      toast('Đã cập nhật nhóm quyền');
+      props.onDone();
+    } catch (e) {
+      setErr(errorMessage(e));
+    }
+  }
+  return (
+    <Modal title={`Nhóm quyền: ${props.user.username}`} onClose={props.onClose}>
+      {err && <div className="alert alert-danger py-2">{err}</div>}
+      <p className="small text-body-secondary mt-0">
+        Quyền của tài khoản = gộp quyền các nhóm được chọn. Không chọn nhóm nào thì dùng nhóm theo vai trò (<strong>{roleLabels[props.user.role]}</strong>).
+        Chỉnh quyền của từng nhóm ở trang <Link to="/users/groups">Nhóm quyền</Link>.
+      </p>
+      <div className="list-group mb-3">
+        {props.groups.filter((g) => g.code !== 'ADMIN').map((g) => (
+          <label key={g.id} className="list-group-item d-flex gap-2 align-items-center">
+            <input
+              type="checkbox"
+              className="form-check-input mt-0"
+              checked={sel.has(g.id)}
+              onChange={(e) => {
+                const s = new Set(sel);
+                if (e.target.checked) s.add(g.id);
+                else s.delete(g.id);
+                setSel(s);
+              }}
+            />
+            <span className="flex-grow-1">{g.name}</span>
+            <code className="small">{g.code}</code>
+          </label>
+        ))}
+      </div>
+      <div className="d-flex justify-content-end gap-2">
+        <button className="btn btn-outline-secondary" onClick={props.onClose}>Huỷ</button>
+        <button className="btn btn-primary" onClick={save}>Lưu</button>
       </div>
     </Modal>
   );

@@ -8,6 +8,8 @@ export interface AuthUser {
   username: string;
   role: Role;
   personId: string | null;
+  /** Quyền hiệu lực (gắn khi xác thực request, từ nhóm quyền). */
+  permissions?: string[];
 }
 
 /** expiresInHours: thời hạn phiên (cấu hình hệ thống); không truyền thì dùng JWT_EXPIRES_IN. */

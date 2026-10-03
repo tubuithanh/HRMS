@@ -37,7 +37,7 @@ export default function ImportPage() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const canImport = useCanWrite('corehr');
+  const canImport = useCanWrite('import');
   const toast = useToast();
 
   const reset = () => {

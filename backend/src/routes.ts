@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import { Role } from '@prisma/client';
-import { requireAuth, requireRole } from './common/middleware/auth';
+import { requireAuth, requirePermission } from './common/middleware/auth';
+import { Module } from './modules/auth/permissions';
 import healthRoutes from './modules/health/health.routes';
 import authRoutes from './modules/auth/auth.routes';
 import meRoutes from './modules/me/me.routes';
@@ -22,12 +23,12 @@ import checklistRoutes from './modules/checklist/checklist.routes';
 import cronRoutes from './modules/jobs/cron.routes';
 
 /**
- * Phân quyền theo phân hệ: `write` được mọi phương thức,
- * `read` chỉ được GET. ADMIN luôn được phép (xem requireRole).
+ * Phân quyền theo phân hệ và nhóm quyền (Hệ thống → Nhóm quyền):
+ * GET cần "<phân hệ>:read" (hoặc :write), mọi phương thức khác cần "<phân hệ>:write". ADMIN luôn được phép.
  */
-function access(write: Role[], read: Role[] = []) {
-  const canWrite = requireRole(...write);
-  const canRead = requireRole(...write, ...read);
+function access(module: Module) {
+  const canRead = requirePermission(`${module}:read`, `${module}:write`);
+  const canWrite = requirePermission(`${module}:write`);
   return (req: Request, res: Response, next: NextFunction) =>
     req.method === 'GET' ? canRead(req, res, next) : canWrite(req, res, next);
 }
@@ -47,24 +48,24 @@ router.use('/cron', cronRoutes);
 router.use('/me', requireAuth, meRoutes);
 
 // Nghiệp vụ theo vai trò
-router.use('/dashboard', requireAuth, access([], ['HR', 'ACCOUNTANT']), dashboardRoutes);
-router.use('/corehr', requireAuth, access(['HR'], ['ACCOUNTANT']), coreHrRoutes);
-router.use('/payroll', requireAuth, access(['ACCOUNTANT'], ['HR']), payrollRoutes);
-router.use('/leave', requireAuth, access(['HR'], ['ACCOUNTANT']), leaveRoutes);
-router.use('/attendance', requireAuth, access(['HR'], ['ACCOUNTANT']), attendanceRoutes);
-router.use('/shifts', requireAuth, access(['HR'], ['ACCOUNTANT']), shiftRoutes);
+router.use('/dashboard', requireAuth, access('dashboard'), dashboardRoutes);
+router.use('/corehr', requireAuth, access('corehr'), coreHrRoutes);
+router.use('/payroll', requireAuth, access('payroll'), payrollRoutes);
+router.use('/leave', requireAuth, access('leave'), leaveRoutes);
+router.use('/attendance', requireAuth, access('attendance'), attendanceRoutes);
+router.use('/shifts', requireAuth, access('attendance'), shiftRoutes);
 // Báo cáo BHXH, thuế TNCN, chuyển lương: kế toán lập, nhân sự xem
-router.use('/reports', requireAuth, access(['ACCOUNTANT'], ['HR']), reportRoutes);
+router.use('/reports', requireAuth, access('reports'), reportRoutes);
 // Khen thưởng – kỷ luật, đào tạo, đánh giá: nhân sự ghi, kế toán xem
-router.use('/people', requireAuth, access(['HR'], ['ACCOUNTANT']), peopleRoutes);
+router.use('/people', requireAuth, access('people'), peopleRoutes);
 // Chế độ BHXH: nhân sự lập hồ sơ, kế toán theo dõi chi trả
-router.use('/benefits', requireAuth, access(['HR', 'ACCOUNTANT']), benefitsRoutes);
-router.use('/assets', requireAuth, access(['HR'], ['ACCOUNTANT']), assetRoutes);
-router.use('/checklists', requireAuth, access(['HR'], ['ACCOUNTANT']), checklistRoutes);
-router.use('/recruitment', requireAuth, access(['HR']), recruitmentRoutes);
+router.use('/benefits', requireAuth, access('benefits'), benefitsRoutes);
+router.use('/assets', requireAuth, access('assets'), assetRoutes);
+router.use('/checklists', requireAuth, access('checklists'), checklistRoutes);
+router.use('/recruitment', requireAuth, access('recruitment'), recruitmentRoutes);
 // Nhập / xuất Excel: phân quyền theo từng route bên trong
 router.use('/import', requireAuth, importRoutes);
-router.use('/audit', requireAuth, requireRole('ADMIN'), auditRoutes);
+router.use('/audit', requireAuth, access('audit'), auditRoutes);
 // Cấu hình: /public cho mọi tài khoản, phần còn lại chỉ ADMIN (kiểm tra bên trong)
 // Google chuyển trình duyệt về đây sau khi cho phép (không kèm token đăng nhập) — xác thực bằng state.
 router.use('/settings/mail/oauth/callback', mailOAuthCallback);

@@ -253,6 +253,7 @@ export interface JobApplication {
 }
 
 export interface UserAccount {
+  permissionGroupIds?: string[];
   orgScope?: string[];
   id: string;
   username: string;

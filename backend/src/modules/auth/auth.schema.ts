@@ -28,6 +28,8 @@ export const createUserSchema = z.object({
   personId: z.string().uuid().optional(),
   /** Bắt đổi mật khẩu ở lần đăng nhập đầu (mặc định có). */
   mustChangePassword: z.boolean().optional(),
+  /** Nhóm quyền; bỏ trống = theo vai trò. */
+  permissionGroupIds: z.array(z.string().uuid()).max(20).optional(),
 });
 
 export const updateUserSchema = z.object({
@@ -36,6 +38,8 @@ export const updateUserSchema = z.object({
   isActive: z.boolean().optional(),
   /** Phạm vi dữ liệu: danh sách đơn vị; rỗng = toàn công ty. */
   orgScope: z.array(z.string().uuid()).max(50).optional(),
+  /** Nhóm quyền; rỗng = theo vai trò. */
+  permissionGroupIds: z.array(z.string().uuid()).max(20).optional(),
 });
 
 export const resetPasswordSchema = z.object({ newPassword: password });

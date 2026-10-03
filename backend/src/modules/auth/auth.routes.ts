@@ -1,6 +1,8 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import { asyncHandler } from '../../common/utils/asyncHandler';
-import { requireAuth, requireRole } from '../../common/middleware/auth';
+import { ForbiddenError, requireAuth, requirePermission, requireRole } from '../../common/middleware/auth';
+import { groupSchema, permissionGroupService, updateGroupSchema } from './permission-group.service';
+import { prisma } from '../../config/prisma';
 import {
   changePasswordSchema,
   createUserSchema,
@@ -76,7 +78,54 @@ router.post(
 );
 
 // ----- Quản lý tài khoản: chỉ ADMIN -----
-router.use('/users', requireAuth, requireRole('ADMIN'));
+// Tài khoản: theo quyền "users". Người không phải ADMIN không được tạo / sửa tài khoản ADMIN hay cấp vai trò ADMIN.
+router.use('/users', requireAuth, (req, res, next) =>
+  requirePermission(...(req.method === 'GET' ? (['users:read', 'users:write'] as const) : (['users:write'] as const)))(req, res, next),
+);
+router.use('/users', (req: Request, _res: Response, next: NextFunction) => {
+  if (req.method === 'GET' || req.user!.role === 'ADMIN') return next();
+  if (req.body?.role === 'ADMIN') return next(new ForbiddenError('Chỉ quản trị được cấp vai trò Quản trị'));
+  const id = req.path.split('/')[1];
+  if (!id) return next();
+  prisma.user
+    .findUnique({ where: { id }, select: { role: true } })
+    .then((u) => next(u?.role === 'ADMIN' ? new ForbiddenError('Chỉ quản trị được sửa tài khoản Quản trị') : undefined))
+    .catch(() => next());
+});
+
+// ---------- Nhóm quyền: chỉ ADMIN chỉnh ----------
+router.use('/permission-groups', requireAuth, requireRole('ADMIN'));
+router.get(
+  '/permission-groups',
+  asyncHandler(async (_req, res) => {
+    res.json({ data: await permissionGroupService.list() });
+  }),
+);
+router.post(
+  '/permission-groups',
+  asyncHandler(async (req, res) => {
+    res.status(201).json({ data: await permissionGroupService.create(groupSchema.parse(req.body)) });
+  }),
+);
+router.patch(
+  '/permission-groups/:id',
+  asyncHandler(async (req, res) => {
+    res.json({ data: await permissionGroupService.update(req.params.id, updateGroupSchema.parse(req.body)) });
+  }),
+);
+router.post(
+  '/permission-groups/:id/reset',
+  asyncHandler(async (req, res) => {
+    res.json({ data: await permissionGroupService.resetSystem(req.params.id) });
+  }),
+);
+router.delete(
+  '/permission-groups/:id',
+  asyncHandler(async (req, res) => {
+    await permissionGroupService.remove(req.params.id);
+    res.status(204).end();
+  }),
+);
 
 router.get(
   '/users',

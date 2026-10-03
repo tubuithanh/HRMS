@@ -2,7 +2,7 @@ import { jobsState, runDailyJobs } from '../jobs/daily';
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../common/utils/asyncHandler';
-import { requireRole } from '../../common/middleware/auth';
+import { requirePermission } from '../../common/middleware/auth';
 import { env } from '../../config/env';
 import { loadMailConfig, mailFrom, mailHost, mailMode, sendMailOrThrow } from '../../common/mailer';
 import { mailConfigSchema, mailConfigService } from './mail-config';
@@ -38,7 +38,9 @@ router.get(
   }),
 );
 
-router.use(requireRole('ADMIN'));
+router.use((req, res, next) =>
+  requirePermission(...(req.method === 'GET' ? (['settings:read', 'settings:write'] as const) : (['settings:write'] as const)))(req, res, next),
+);
 
 /** GET /api/settings — toàn bộ cấu hình, thông tin công ty, tham số pháp lý (chỉ xem), trạng thái email. */
 router.get(
